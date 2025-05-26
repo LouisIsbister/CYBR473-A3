@@ -7,7 +7,10 @@
 
 /**
  * most keys have two values based upon whether caps lock
- * or shift is help down
+ * or shift is is on/being held down. 'Normal' char is regular 
+ * key press, 'onShift' accounts for when shift is held down, and 
+ * for capital letters when capslock is on. The last value is
+ * assigned a string representation ONLY for unprintable keys! 
  */
 typedef struct {
     char normal;

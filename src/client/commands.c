@@ -6,18 +6,16 @@
 #include "commands.h"
 
 /**
- * split the cmds based upon newline characters. Then execute each one sequenetially.
+ * split the cmds based upon newline characters. Then execute each one sequentially.
  */
 ERR_CODE executeCommands(CLIENT_HANDLER* client) {
     if (strlen(client->cmdBuffer) == 0) return ECODE_EMPTY_BUFFER; // no commands
 
-    // ERR_CODE cmdReturnCode;
     char* saveState;
     char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
     
     // we check for shutdown here in case theere are commands after the shd
     while (line != NULL) {
-        // cmdReturnCode = processCommand(line);
         if (processCommand(line) == ECODE_DO_SHUTDOWN) // if we receive the shutdown command then exit!
             return ECODE_DO_SHUTDOWN;
 
@@ -31,6 +29,9 @@ ERR_CODE executeCommands(CLIENT_HANDLER* client) {
 /**
  * takes a single command, matching the given action and generating a new 
  * COMMAND struct. Then dispatches command execute before freeing the memory again
+ * 
+ * NOTE: we can simplify this code easily to only handle the 3 cases, and as such we 
+ * can get rid of the COMMAND struct, before hand in simply check this back.
  */
 ERR_CODE processCommand(char* cmdStr) {
     COMMAND* cmd = malloc(sizeof(COMMAND));

