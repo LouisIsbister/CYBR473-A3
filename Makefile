@@ -10,9 +10,13 @@ TARGET = run
 # Source files
 SRCS = \
 	src\main.c \
+	\
 	src\program\program.c \
 	src\program\utils.c \
+	\
 	src\keylogger\keylogger.c \
+	src\keylogger\keypair.c \
+	\
 	src\client\client.c \
 	src\client\commands.c 
 

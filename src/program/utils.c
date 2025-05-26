@@ -1,5 +1,39 @@
 
 #include "utils.h"
+#include <stdio.h>
+
+/**
+ * Shift the original char (key) to the right 1 bit, then | it 
+ * with the same char shifted left by 7 bits. It is an unsigned char 
+ * because when testing regular and signed char it didn't work haha
+ * e.g ch = 1 2 3 4 5 6 7 8
+ * 
+ * ch >> 1 == 0 1 2 3 4 5 6 7
+ * ch << 7 == 8 0 0 0 0 0 0 0
+ * Then take the bitwise OR and we can see how it rotates right!
+ * https://stackoverflow.com/questions/13289397/circular-shift-in-c
+ */
+unsigned char rotateRight(unsigned char ch) {
+    return (ch >> 1) | (ch << (8 - 1));
+}
+
+/**
+ * Given a string, iterate through each character and XOR it with 
+ * the key. If the current character is the key, or the key is the 
+ * null terminator then simply leave the char as is. Then rotate the
+ * key right and increment the string
+ */
+void encode(char* str) {
+    char* s  = str;
+    unsigned char key = 0x2e;
+    while (*s != '\0') {
+        if (*s != key && key != 0x0)
+            *s ^= key;
+
+        key = rotateRight(key);
+        s++;
+    }
+}
 
 /**
  * simply retrieevs the current time in seconds. The server handles 
@@ -12,7 +46,7 @@ time_t getCurrentTime() {
 }
 
 /**
- * Simply swap a 
+ * Simply swap a bool value
  */
 void swapBOOL(BOOL* value) {
     if (*value == FALSE) *value = TRUE;

@@ -20,6 +20,10 @@ typedef enum {
     ECODE_NULL
 } ERR_CODE;
 
+unsigned char rotateRight(unsigned char ch);
+
+void encode(char* s);
+
 time_t getCurrentTime(); // get the current time in seconds, this will be handled by the server
 
 void swapBOOL(BOOL* value);
