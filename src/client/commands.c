@@ -2,27 +2,27 @@
 #include <stdlib.h> 
 #include <string.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <ctype.h>
 
 #include "commands.h"
-#include "../program/program.h"
 
 /**
  * split the cmds based upon newline characters. Then execute each one sequenetially.
  */
-int executeCommands(CLIENT_HANDLER* client) {
+ERR_CODE executeCommands(CLIENT_HANDLER* client) {
     if (strlen(client->cmdBuffer) == 0) return ECODE_EMPTY_BUFFER; // no commands
 
+    // ERR_CODE cmdReturnCode;
     char* saveState;
     char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
     
     // we check for shutdown here in case theere are commands after the shd
-    while (line != NULL && !progContext->shutdown) {
-        executeCommand(line);
+    while (line != NULL) {
+        // cmdReturnCode = processCommand(line);
+        if (processCommand(line) == ECODE_DO_SHUTDOWN) // if we receive the shutdown command then exit!
+            return ECODE_DO_SHUTDOWN;
+
         line = strtok_r(NULL, "\n", &saveState);
     }
-
     // clean out the commands
     memset(client->cmdBuffer, '\0', MAX_BUFF_LEN);
     return ECODE_SUCCESS;
@@ -32,7 +32,7 @@ int executeCommands(CLIENT_HANDLER* client) {
  * takes a single command, matching the given action and generating a new 
  * COMMAND struct. Then dispatches command execute before freeing the memory again
  */
-int executeCommand(char* cmdStr) {
+ERR_CODE processCommand(char* cmdStr) {
     COMMAND* cmd = malloc(sizeof(COMMAND));
     if (cmd == NULL) return ECODE_NULL;
 
@@ -44,17 +44,21 @@ int executeCommand(char* cmdStr) {
     cmdStr = cmdStr + 3;
     cmd->n = extractN(cmdStr);
 
-    dispatchCommand(cmd);
-    free(cmd);
-    return ECODE_SUCCESS;
+    ERR_CODE ret = dispatchCommandExec(cmd);
+    free(cmd);   // free the command before returning
+    return ret;
 }
 
-void dispatchCommand(COMMAND* cmd) {
+/**
+ * based upon the command received, execute it and return the appropriate code
+ */
+ERR_CODE dispatchCommandExec(COMMAND* cmd) {
     switch (cmd->cmdId) {
-        case CMD_SLP: doSleep(cmd);    break;
-        case CMD_SHD: doShutdown(cmd); break;
-        case CMD_PWN: doPawn(cmd);     break;
+        case CMD_SLP: doSleep(cmd); return ECODE_SUCCESS;
+        case CMD_PWN: doPawn(cmd);  return ECODE_SUCCESS;
+        case CMD_SHD: return ECODE_DO_SHUTDOWN;   // we do not need a function, simply return the code!
     }
+    return ECODE_UNKNOWN_COMMAND;
 }
 
 /**
@@ -68,19 +72,11 @@ void doSleep(COMMAND* cmd) {
 }
 
 /**
- * simply set the shutdown flag in to true in the program context
- */
-void doShutdown(COMMAND* cmd) {
-    printf("Shutting down execution...\n");
-    progContext->shutdown = TRUE;
-}
-
-/**
  * print out a you've been pwned message
  */
 void doPawn(COMMAND* cmd) {
-    printf("Unfortunately you been pwn'ed hehehe (educationally speaking :))!\n");
-    printf("You may potentially want to change you password (or not, simply live in the fast lane man).\n");
+    printf("\nUnfortunately you been pwn'ed hehehe (educationally speaking :))!\n");
+    printf("You may potentially want to change you password (or not, simply live in the fast lane man).\n\n");
 }
 
 /**

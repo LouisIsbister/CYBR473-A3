@@ -120,7 +120,6 @@ def get_log(cid):
     if cid not in clients.keys():
         return f'BAD REQ: <{cid}> is not registered.', 400, PLAIN_TEXT
     
-    clients[cid].logs = ['hello', 'syssleep', 'pwd', 'cd ..']
     return '\n'.join(clients[cid].logs), 200, PLAIN_TEXT
 
 

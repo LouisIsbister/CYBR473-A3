@@ -6,13 +6,13 @@
 int main(int argc, char const** argv) {
     int ret = setup();
     if (ret != 0) {
-        printf("Err: %s\n", getErrMessage(ret));
+        printf("ECODE: %s\n", getErrMessage(ret));
         programCleanup();
         return ret;
     }
     
     ret = startThreads();
-    printf("Cleaning up.\nProgram finished with: %s", getErrMessage(ret));
+    printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
 
     programCleanup();
     return 0;

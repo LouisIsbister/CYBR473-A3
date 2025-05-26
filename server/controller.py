@@ -81,7 +81,7 @@ def print_home():
       1) slp <client_id> <num_of_seconds>
           - Make the victim sleep for n seconds.
       2) shd <client_id>
-          - Make the victim machine shutdown.
+          - Terminate execution of client program.
       3) pwn <client_id>
           - Display a simple messsage to the victim to scare them.
 

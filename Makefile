@@ -12,7 +12,7 @@ SRCS = \
 	src\main.c \
 	src\program\program.c \
 	src\program\utils.c \
-	src\program\keyloggerstate.c \
+	src\keylogger\keylogger.c \
 	src\client\client.c \
 	src\client\commands.c 
 
