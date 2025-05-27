@@ -33,10 +33,13 @@ ERR_CODE processCommands(CLIENT_HANDLER* client) {
  */
 ERR_CODE executeCommand(char* cmdStr) {
     if (strncmp(cmdStr, "slp", 3) == 0) {
-        int n = extractN(cmdStr + 3);
-        doSleep(&n);
-        return ECODE_DO_SLEEP;
+        progContext->sleeping = TRUE;
+        doSleep(extractN(cmdStr + 3));
+        progContext->sleeping = FALSE;
+
+        return ECODE_SUCCESS;
     } else if (strncmp(cmdStr, "shd", 3) == 0) {
+        progContext->shutdown = TRUE;
         return ECODE_DO_SHUTDOWN;
     } else if (strncmp(cmdStr, "pwn", 3) == 0) {
         doPawn();
@@ -50,9 +53,9 @@ ERR_CODE executeCommand(char* cmdStr) {
  * simply sleep for n seconds, this halts all threads because the mutex was aquired
  * before the remote commands could be executed!
  */
-void doSleep(int* n) {
-    printf("Sleeping for %ds\n", *n);
-    Sleep(*n);
+void doSleep(int n) {
+    printf("Sleeping for %ds\n", n);
+    Sleep(n);
     printf("Sleep finsished!\n");
 }
 
