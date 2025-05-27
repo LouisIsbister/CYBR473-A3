@@ -1,30 +1,27 @@
-# Compiler
-CC = gcc
 
-# Compiler flags
-CFLAGS = -Wall
+CC = gcc # Compiler
 
-# Output executable name
-TARGET = run
+CFLAGS = -Wall # compiler flags
 
-# Source files
+TARGET = run # output executable name
+
+# source files
 SRCS = \
-	src\main.c \
+	src\main.c\
 	\
-	src\program\program.c \
-	src\program\utils.c \
+	src\program\program.c\
+	src\program\utils.c\
 	\
-	src\keylogger\keylogger.c \
-	src\keylogger\keypair.c \
+	src\keylogger\keylogger.c\
+	src\keylogger\keypair.c\
 	\
-	src\client\client.c \
-	src\client\commands.c 
+	src\client\client.c\
+	src\client\commands.c
 
-# Build target
+# build target
 $(TARGET): $(SRCS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) -lwininet
 
-# Clean target to remove compiled files
 clean:
 	del .\$(TARGET).exe
 

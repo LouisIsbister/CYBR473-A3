@@ -6,7 +6,7 @@
 int main(int argc, char const** argv) {
     int ret = setup();
     if (ret != 0) {
-        printf("ECODE: %s\n", getErrMessage(ret));
+        printErr(ret);
         programCleanup();
         return ret;
     }

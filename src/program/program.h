@@ -24,7 +24,7 @@ typedef struct {
     HANDLE hWriteThread;  // handle to log writer thread
     HANDLE hMutexThreadSync;   // thread mutex handle
     
-    BOOL shutdown;  // shutodwn flag updated in the commands.c source file
+    BOOL shutdown;  // shutdown flag updated in the commands.c source file
 } PROGRAM_CONTEXT;
 
 extern PROGRAM_CONTEXT* progContext;  // Global program context variable

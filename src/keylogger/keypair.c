@@ -7,7 +7,7 @@
  */
 KEY_PAIR* initKeyPair(char normal, char onShift, char* unprStr) {
     KEY_PAIR* kp = malloc(sizeof(KEY_PAIR));
-    if (kp == NULL) return NULL;
+    if (kp == NULL) { return NULL; }
     
     kp->normal = normal;
     kp->onShift = onShift;
@@ -21,9 +21,10 @@ KEY_PAIR* initKeyPair(char normal, char onShift, char* unprStr) {
  * it must be true
  */
 BOOL isKeyUnprintable(KEY_PAIR* kp) {
-    if (kp == NULL) return FALSE;
-    if (kp->unprintableKeyStr == NULL)
-        return FALSE;
+    if (kp == NULL) { return FALSE; }
+    else if (kp->unprintableKeyStr == NULL) { 
+        return FALSE; 
+    }
     return TRUE;
 }
 
@@ -32,7 +33,8 @@ BOOL isKeyUnprintable(KEY_PAIR* kp) {
  * structure itself
  */
 void cleanupKeyPair(KEY_PAIR* kp) {
-    if (kp->unprintableKeyStr != NULL) 
+    if (kp->unprintableKeyStr != NULL) {
         free(kp->unprintableKeyStr);
+    }
     free(kp);
 }

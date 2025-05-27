@@ -1,6 +1,25 @@
 
-#include "utils.h"
 #include <stdio.h>
+
+#include "utils.h"
+
+
+/**
+ * Given a string pointer, iterate through each character and XOR it with 
+ * the encoding key. If the current character is the key, or the key is the 
+ * null terminator then simply leave the char as is. Then rotate the
+ * key right and increment the string
+ */
+void encode(char* str, unsigned char* encKey) {
+    char* s  = str;
+    while (*s != '\0') {
+        if (*s != *encKey && *encKey != 0x0) {
+            *s ^= *encKey;
+        }
+        rotateRight(encKey);
+        s++;
+    }
+}
 
 /**
  * Shift the original char (key) to the right 1 bit, then | it 
@@ -13,26 +32,8 @@
  * Then take the bitwise OR and we can see how it rotates right!
  * https://stackoverflow.com/questions/13289397/circular-shift-in-c
  */
-unsigned char rotateRight(unsigned char ch) {
-    return (ch >> 1) | (ch << (8 - 1));
-}
-
-/**
- * Given a string, iterate through each character and XOR it with 
- * the key. If the current character is the key, or the key is the 
- * null terminator then simply leave the char as is. Then rotate the
- * key right and increment the string
- */
-void encode(char* str) {
-    char* s  = str;
-    unsigned char key = 0x2e;
-    while (*s != '\0') {
-        if (*s != key && key != 0x0)
-            *s ^= key;
-
-        key = rotateRight(key);
-        s++;
-    }
+void rotateRight(unsigned char* ch) {
+    *ch = (*ch >> 1) | (*ch << (8 - 1));
 }
 
 /**
@@ -49,8 +50,15 @@ time_t getCurrentTime() {
  * Simply swap a bool value
  */
 void swapBOOL(BOOL* value) {
-    if (*value == FALSE) *value = TRUE;
-    else *value = FALSE;
+    if (*value == FALSE) { *value = TRUE; }
+    else { *value = FALSE; }
+}
+
+/**
+ * testing function to report err codes
+ */
+void printErr(ERR_CODE err) {
+    printf("ERR: %s\n", getErrMessage(err));
 }
 
 /**

