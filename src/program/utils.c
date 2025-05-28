@@ -68,8 +68,8 @@ const char* getErrMessage(ERR_CODE code) {
     switch (code) {
         case ECODE_SUCCESS: return "Success.\n";
         case ECODE_SAFE_RET: return "Safely returned.\n";
+        case ECODE_INCORRECT_ENC: return "Incorrect encoding.\n";
         case ECODE_DO_SHUTDOWN: return "Remote shutdown...\n";
-        case ECODE_UNKNOWN_COMMAND: return "Unknown command given.\n";
         case ECODE_GET: return "GET error.\n";
         case ECODE_POST: return "POST error.\n";
         case ECODE_EMPTY_BUFFER: return "Empty buffer.\n";

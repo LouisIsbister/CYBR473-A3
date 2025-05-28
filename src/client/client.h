@@ -21,6 +21,8 @@ typedef struct {
     char id[MAX_ID_LEN];
     char cmdBuffer[MAX_BUFF_LEN];
 
+    unsigned char ENC_KEY;
+
     HINTERNET hSession; // internet session
     HINTERNET hConnect; // server connection handle
 } CLIENT_HANDLER;

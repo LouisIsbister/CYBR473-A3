@@ -3,9 +3,9 @@
 
 #include "program/program.h"
 
-int main(int argc, char const** argv) {
+int main(int argc, const char** argv) {
     int ret = setup();
-    if (ret != 0) {
+    if (ret != ECODE_SUCCESS) {
         printErr(ret);
         programCleanup();
         return ret;

