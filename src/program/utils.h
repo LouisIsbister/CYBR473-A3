@@ -23,6 +23,8 @@ typedef enum {
     ECODE_NULL
 } ERR_CODE;
 
+unsigned char* freshEncodingKeyPtr(unsigned char key);
+
 void encode(char* str, unsigned char* encKey);  // symetrically encode a string
 void rotateRight(unsigned char* ch) ; // circular char rotation
 

@@ -1,9 +1,9 @@
 
 CC = gcc # Compiler
 
-CFLAGS = -Wall # compiler flags
+CFLAGS = -Wall # -m32 # compiler flags
 
-TARGET = run # output executable name
+TARGET = mal # output executable name
 
 # source files
 SRCS = \
