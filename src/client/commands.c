@@ -27,7 +27,7 @@ ERR_CODE processCommands(CLIENT_HANDLER* client) {
     
     // we check for shutdown here in case theere are commands after the shd
     while ((line = strtok_r(client->cmdBuffer, "\n", &saveState)) != NULL) {
-        ERR_CODE ret = executeCommand(line, client->ENC_KEY);
+        ERR_CODE ret = executeCommand(line, ctx->__KEY__);
 
         // if shutdown, or the commands were incorrectly encoded then exit!
         if (ret == ECODE_DO_SHUTDOWN)   { return ECODE_DO_SHUTDOWN; }

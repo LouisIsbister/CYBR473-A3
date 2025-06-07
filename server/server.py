@@ -31,8 +31,11 @@ class Cli():
         self.is_active = self.beacon_diff <= MAX_ACTIVE_TIME_BETWEEN_BEACON
     
     # add a command or log
-    def add_command(self, cmd): self.commands.append(cmd)
-    def add_log(self, log):     self.logs.append(log)
+    def add_command(self, cmd):
+        self.commands.append(cmd)
+
+    def add_log(self, log):
+        self.logs.append(log)
     
     def __str__(self):
         str_ =  f'{self.id}\n'
@@ -142,7 +145,7 @@ def encode_commands(client: Cli) -> bytes:
     for i, cmd in enumerate(client.commands):
         cmds_bytes.extend(encode(cmd, client.enc_key))
         if i < num_cmds - 1:
-            cmds_bytes.append(0x0A) # add a newline character
+            cmds_bytes.append(0x0A) # \n
     return bytes(cmds_bytes)
 
 def rotate_right(ch):

