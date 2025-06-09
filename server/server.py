@@ -99,6 +99,7 @@ def get_commands():
 
     if len(client.commands) == 0:  # if there are no queued commands
         return '', 200
+    
     encoded_commands = encode_commands(client)
     client.commands = []  # clear command log
     
@@ -197,5 +198,5 @@ def asym_xor(s: bytes, key: bytes) -> bytes:
 
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', threaded=True)
+    app.run(host='127.0.0.1', port=5000)
 

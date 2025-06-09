@@ -20,18 +20,18 @@ static int extractN(char* cmdStr);
  * being spoofed, as such do not execute them!
  */
 ERR_CODE processCommands(CLIENT_HANDLER* client) {
-    if (strlen(client->cmdBuffer) == 0) { return ECODE_EMPTY_BUFFER; } // no commands
-
     char* saveState;
-    char* line;
+    char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
     
     // we check for shutdown here in case theere are commands after the shd
-    while ((line = strtok_r(client->cmdBuffer, "\n", &saveState)) != NULL) {
+    while (line != NULL) {
         ERR_CODE ret = executeCommand(line, ctx->__KEY__);
 
         // if shutdown, or the commands were incorrectly encoded then exit!
         if (ret == ECODE_DO_SHUTDOWN)   { return ECODE_DO_SHUTDOWN; }
         if (ret == ECODE_INCORRECT_ENC) { return ECODE_INCORRECT_ENC; }
+
+        line = strtok_r(NULL, "\n", &saveState);
     }
     return ECODE_SUCCESS;
 }
@@ -41,9 +41,7 @@ ERR_CODE processCommands(CLIENT_HANDLER* client) {
  * COMMAND struct. Then dispatches command execute before freeing the memory again
  */
 static ERR_CODE executeCommand(char* cmdStr, unsigned char key) {
-    printf("\nENCODED CMD: '%s'  KEY: '%02X'", cmdStr, key);
     encode(cmdStr, &key);
-    printf("\nDECODED CMD: '%s'\n", cmdStr);
     
     if (strncmp(cmdStr, "slp", 3) == 0) {
         ctx->sleeping = TRUE;
@@ -79,7 +77,7 @@ static void doSleep(int n) {
  */
 static void doPawn() {
     printf("\nUnfortunately you been pwn'ed hehehe (educationally speaking :))!\n");
-    printf("You may potentially want to change you password (or not, simply live in the fast lane man).\n\n");
+    printf("You may potentially want to change you password...\n\n");
 }
 
 /**

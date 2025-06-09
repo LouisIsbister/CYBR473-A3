@@ -7,7 +7,7 @@
 #define PROGRAM_H
 
 #define SLP_CMD_THREAD 22500    // 22.5s
-#define SLP_WRITER_THREAD 20000 // 20s
+#define SLP_WRITER_THREAD 15000 // 15s
 
 
 /**

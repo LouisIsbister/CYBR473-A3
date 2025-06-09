@@ -4,14 +4,16 @@ import requests
 import re
 
 PLAIN_HEADER = {'Content-Type': 'text/plain'}
+CLEAR        = 'cls' if os.name == 'nt' else 'clear'
+
 CMD_SYN_ERR  = 'Invalid command, please use \'help\' to refer to commands.'
 LOGS_SYN_ERR = 'Invalid logs syntax, needs one arg <client_id>'
 SLP_SYN_ERR  = 'Invalid slp syntax, needs two args <client_id> & <n>'
 SHD_SYN_ERR  = 'Invalid shd syntax, requires one arg <client_id>'
 PWN_SYN_ERR  = 'Invalid pwn syntax, requires one arg <client_id>'
 
-global exit
 
+global exit
 def run():
     ''' effectively run a simple repl, break once the user enters 'exit'
     otheriwse handle the command provided by the user
@@ -70,7 +72,7 @@ def handle_helper_cmds(cmd):
     match cmd:
         case 'exit': exit = True
         case 'help': print_home()
-        case 'clear': os.system('cls')
+        case 'clear': os.system(CLEAR)
         case 'clients':
             response = requests.get(f'http://127.0.0.1:5000/clients')
             print(text_from_response(response))
