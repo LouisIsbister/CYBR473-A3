@@ -10,6 +10,7 @@
 
 typedef enum {
     ECODE_SUCCESS,
+    ECODE_FAILURE,
     ECODE_SAFE_RET,
     ECODE_INCORRECT_ENC,
     
@@ -20,8 +21,13 @@ typedef enum {
 
     ECODE_EMPTY_BUFFER,
     ECODE_FULL_BUFF,
-    ECODE_NULL
+    ECODE_NULL,
+
+    ECODE_VMWARE_DETECTED,
+    ECODE_VBOX_DETECTED,
 } ERR_CODE;
+
+ERR_CODE retrieveMAC(char* mac);
 
 unsigned char* freshEncodingKeyPtr(unsigned char key);
 

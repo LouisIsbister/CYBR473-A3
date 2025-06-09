@@ -1,7 +1,31 @@
 
 #include <stdio.h>
+#include <iphlpapi.h>
 
 #include "utils.h"
+
+
+/**
+ * Given a string find the mac address for this device and put 
+ */
+ERR_CODE retrieveMAC(char* mac) {
+    DWORD bufferLen = sizeof(IP_ADAPTER_INFO);
+    PIP_ADAPTER_INFO adapterInfo = (IP_ADAPTER_INFO *) malloc(sizeof(IP_ADAPTER_INFO));
+
+    if (adapterInfo == NULL) { return ECODE_NULL; }
+
+    if (GetAdaptersInfo(adapterInfo, &bufferLen) != NO_ERROR) { return ECODE_FAILURE; }
+
+    BYTE* addr = adapterInfo->Address;
+    sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+
+    printf("Adapater Name: '%s'\n", adapterInfo->AdapterName);
+    printf("Adapater MAC: '%s'\n\n", mac);
+
+    free(adapterInfo);
+    return ECODE_SUCCESS;
+}
+
 
 
 /**
@@ -83,6 +107,7 @@ void printErr(ERR_CODE err) {
 const char* getErrMessage(ERR_CODE code) {
     switch (code) {
         case ECODE_SUCCESS: return "Success.\n";
+        case ECODE_FAILURE: return "Failure.\n";
         case ECODE_SAFE_RET: return "Safely returned.\n";
         case ECODE_INCORRECT_ENC: return "Incorrect encoding.\n";
         case ECODE_DO_SHUTDOWN: return "Remote shutdown...\n";
@@ -91,6 +116,9 @@ const char* getErrMessage(ERR_CODE code) {
         case ECODE_EMPTY_BUFFER: return "Empty buffer.\n";
         case ECODE_FULL_BUFF: return "Full buffer.\n";
         case ECODE_NULL: return "Null pointer.\n";
-        default: return "Unknown error"; // should never be hit
+        case ECODE_VMWARE_DETECTED: return "Detected VMWare!\n";
+        case ECODE_VBOX_DETECTED: return "Detected VBox!\n";
+        // default: return "Unknown error"; // should never be hit
     }
+    return "Unknown error"; // should never be hit
 }
