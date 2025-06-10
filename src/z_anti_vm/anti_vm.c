@@ -1,5 +1,4 @@
 
-#include <stdio.h>
 #include <iphlpapi.h>
 
 #include "anti_vm.h"

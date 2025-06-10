@@ -1,6 +1,4 @@
 
-#include <stdio.h>
-
 #include "client.h"
 
 static void retrieveVersionInfo(char* version);

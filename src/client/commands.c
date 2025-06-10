@@ -1,7 +1,5 @@
-
-#include <stdlib.h> 
+ 
 #include <string.h>
-#include <stdio.h>
 
 #include "commands.h"
 #include "client.h"

@@ -6,7 +6,8 @@
 
 
 /**
- * Given a string find the mac address for this device and put 
+ * Given a string find the mac address for this device and put
+ * https://stackoverflow.com/questions/13646621/how-to-get-mac-address-in-windows-with-c
  */
 ERR_CODE retrieveMAC(char* mac) {
     DWORD bufferLen = sizeof(IP_ADAPTER_INFO);

