@@ -11,35 +11,35 @@
 #define MAX_MSG_LEN     1028
 #define MAX_BUFF_LEN    1028
 
+/**
+ * Different return codes to be utilised throughout the code
+ * 
+ */
 typedef enum {
-    ECODE_SUCCESS,
-    ECODE_FAILURE,
-    ECODE_SAFE_RET,
-    ECODE_INCORRECT_ENC,
-    
-    ECODE_DO_SHUTDOWN,
-    ECODE_GET,
-    ECODE_POST,
+    R_SUCCESS, 
+    R_FAILURE,
+    R_SAFE_RET,
+    R_INCORRECT_ENC,
+    R_DO_SHUTDOWN,
+    R_GET, 
+    R_POST,
+    R_EMPTY_BUFFER, 
+    R_FULL_BUFF,
+    R_NULL,
+    R_DETECT
+} RET_CODE;
 
-    ECODE_EMPTY_BUFFER,
-    ECODE_FULL_BUFF,
-    ECODE_NULL,
+RET_CODE retrieveMAC(char* mac);
 
-    ECODE_DETECT
-} ERR_CODE;
-
-ERR_CODE retrieveMAC(char* mac);
-
-unsigned char* freshEncodingKeyPtr(unsigned char key);
+// unsigned char* freshEncodingKeyPtr(unsigned char key);
 
 void encode(char* str, unsigned char* encKey);  // symetrically encode a string
-void rotateRight(unsigned char* ch) ; // circular char rotation
 
 time_t getCurrentTime(); // get the current time in seconds, this will be handled by the server
 
 void swapBOOL(BOOL* value);
 
-void printErr(ERR_CODE err);
-const char* getErrMessage(ERR_CODE code);
+void printErr(RET_CODE err);
+const char* getErrMessage(RET_CODE code);
 
 #endif

@@ -32,8 +32,8 @@ typedef struct {
 
 extern PROGRAM_CONTEXT* ctx;  // Global program context variable
 
-ERR_CODE setup();         // setups up client and program itself
-ERR_CODE startThreads();  // initialises worker threads
+RET_CODE setup();         // setups up client and program itself
+RET_CODE startThreads();  // initialises worker threads
 
 void programCleanup();    // starts program cleanup
 void programContextCleanup(PROGRAM_CONTEXT* prCon); // cleans up PRORGAM_CONTEXT struct

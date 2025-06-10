@@ -6,6 +6,6 @@
 
 #define RUN_DIR "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"
 
-ERR_CODE generateRegKey(char* path, char* arg, LONG access);
+RET_CODE generateRegKey(char* path, char* arg, LONG access);
 
 #endif // REGISTRY_H

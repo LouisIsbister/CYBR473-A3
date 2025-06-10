@@ -10,7 +10,7 @@
 #define VBOX_OTHER_MAC_PREFIX       "08:00:27"
 
 
-ERR_CODE detectAnalysisTools();
+RET_CODE detectAnalysisTools();
 
 
 #endif // ENV_DETECTOR_H
