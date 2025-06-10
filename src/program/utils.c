@@ -1,12 +1,13 @@
 
-#include <stdio.h>
-#include <iphlpapi.h>
 
 #include "utils.h"
 
+#include <stdio.h>
+#include <iphlpapi.h>
+
 
 /**
- * Given a string find the mac address for this device and put
+ * Given a string declared as 'char mac[18]', find the mac address for this device and store it in 'mac'
  * https://stackoverflow.com/questions/13646621/how-to-get-mac-address-in-windows-with-c
  */
 ERR_CODE retrieveMAC(char* mac) {
@@ -19,9 +20,6 @@ ERR_CODE retrieveMAC(char* mac) {
 
     BYTE* addr = adapterInfo->Address;
     sprintf(mac, "%02X:%02X:%02X:%02X:%02X:%02X", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-
-    printf("Adapater Name: '%s'\n", adapterInfo->AdapterName);
-    printf("Adapater MAC: '%s'\n\n", mac);
 
     free(adapterInfo);
     return ECODE_SUCCESS;
@@ -117,9 +115,7 @@ const char* getErrMessage(ERR_CODE code) {
         case ECODE_EMPTY_BUFFER: return "Empty buffer.\n";
         case ECODE_FULL_BUFF: return "Full buffer.\n";
         case ECODE_NULL: return "Null pointer.\n";
-        case ECODE_VMWARE_DETECTED: return "Detected VMWare!\n";
-        case ECODE_VBOX_DETECTED: return "Detected VBox!\n";
-        // default: return "Unknown error"; // should never be hit
+        case ECODE_DETECT: return "Analysis tool detected!\n";
     }
     return "Unknown error"; // should never be hit
 }

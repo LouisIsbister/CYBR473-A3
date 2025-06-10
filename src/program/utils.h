@@ -18,7 +18,6 @@ typedef enum {
     ECODE_INCORRECT_ENC,
     
     ECODE_DO_SHUTDOWN,
-
     ECODE_GET,
     ECODE_POST,
 
@@ -26,8 +25,7 @@ typedef enum {
     ECODE_FULL_BUFF,
     ECODE_NULL,
 
-    ECODE_VMWARE_DETECTED,
-    ECODE_VBOX_DETECTED,
+    ECODE_DETECT
 } ERR_CODE;
 
 ERR_CODE retrieveMAC(char* mac);

