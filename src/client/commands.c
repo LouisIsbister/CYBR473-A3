@@ -65,7 +65,7 @@ static RET_CODE executeCommand(char* cmdStr, unsigned char key) {
  * before the remote commands could be executed!
  */
 static void doSleep(int n) {
-    printf("Sleeping for %ds\n", n);
+    printf("Sleeping for %dms\n", n);
     Sleep(n);
     printf("Sleep finsished!\n");
 }

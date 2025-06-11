@@ -56,7 +56,7 @@ RET_CODE detectAnalysisTools() {
 // ---       Anti-VM      ---
 // ---
 // --------------------------
-
+// winow enumeration and process enumeration
 
 /**
  * 

