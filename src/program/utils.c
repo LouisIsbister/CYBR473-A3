@@ -7,6 +7,8 @@
 
 
 
+static void circularShiftRight(unsigned char* ch);
+
 /**
  * Given a string declared as 'char mac[18]', find the mac address for this device and store it in 'mac'
  * https://stackoverflow.com/questions/13646621/how-to-get-mac-address-in-windows-with-c
@@ -26,24 +28,6 @@ RET_CODE retrieveMAC(char* mac) {
     return R_SUCCESS;
 }
 
-
-
-// /**
-//  * This code may look weird, however, my encoding function takes a pointer
-//  * to an unsigned character that is the encoding key, this allows key logger structs
-//  * to maintain a stateful encoding key to encode many pieces of infomation. However,
-//  * this also means if we want to encode information outside the keylogger we need 
-//  * a valid pointer a key! Hence the use of the global unsigned char whose value 
-//  * we can set to the key and whose address we can reference!
-//  */
-// static unsigned char __ENODING_KEY_POINTER__;
-// unsigned char* freshEncodingKeyPtr(unsigned char key) {
-//     __ENODING_KEY_POINTER__ = key;
-//     return &__ENODING_KEY_POINTER__;
-// }
-
-static void rotateRight(unsigned char* ch);
-
 /**
  * Given a string pointer, iterate through each character and XOR it with 
  * the encoding key. If the current character is the key, or the key is the 
@@ -57,7 +41,7 @@ void encode(char* str, unsigned char* encKey) {
         if (*s != *encKey && *encKey != 0x0) {
             *s ^= *encKey;
         }
-        rotateRight(encKey);
+        circularShiftRight(encKey);
         s++;
     }
 }
@@ -73,7 +57,7 @@ void encode(char* str, unsigned char* encKey) {
  * Then take the bitwise OR and we can see how it rotates right!
  * https://stackoverflow.com/questions/13289397/circular-shift-in-c
  */
-static void rotateRight(unsigned char* ch) {
+static void circularShiftRight(unsigned char* ch) {
     *ch = (*ch >> 1) | (*ch << (8 - 1));
 }
 
@@ -99,13 +83,13 @@ void swapBOOL(BOOL* value) {
  * testing function to report err codes
  */
 void printErr(RET_CODE err) {
-    printf("ERR: %s\n", getErrMessage(err));
+    printf("ERR: %s\n", getRetMessage(err));
 }
 
 /**
  * get appropriate error message based on error code
  */
-const char* getErrMessage(RET_CODE code) {
+const char* getRetMessage(RET_CODE code) {
     switch (code) {
         case R_SUCCESS: return "Success.\n";
         case R_FAILURE: return "Failure.\n";

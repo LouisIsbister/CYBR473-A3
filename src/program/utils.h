@@ -40,6 +40,6 @@ time_t getCurrentTime(); // get the current time in seconds, this will be handle
 void swapBOOL(BOOL* value);
 
 void printErr(RET_CODE err);
-const char* getErrMessage(RET_CODE code);
+const char* getRetMessage(RET_CODE code);
 
 #endif
