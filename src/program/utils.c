@@ -79,35 +79,3 @@ time_t getCurrentTime() {
 void swapBOOL(BOOL* value) {
     *value = !(*value);
 }
-
-/**
- * Simply print the seult of calling getRetMessage
- * 
- * @param code provided return code 
- */
-void printRetCode(RET_CODE code) {
-    printf("Ret: %s\n", getRetMessage(code));
-}
-
-/**
- * Return the appropriate message based on the return code
- * 
- * @param code the provided return code
- * @return the associated return code message
- */
-static const char* getRetMessage(RET_CODE code) {
-    switch (code) {
-        case R_SUCCESS: return "Success.\n";
-        case R_FAILURE: return "Failure.\n";
-        case R_SAFE_RET: return "Safely returned.\n";
-        case R_INCORRECT_ENC: return "Incorrect encoding.\n";
-        case R_DO_SHUTDOWN: return "Remote shutdown...\n";
-        case R_GET: return "GET error.\n";
-        case R_POST: return "POST error.\n";
-        case R_EMPTY_BUFFER: return "Empty buffer.\n";
-        case R_FULL_BUFF: return "Full buffer.\n";
-        case R_NULL: return "Null pointer.\n";
-        case R_DETECT: return "Analysis tool detected!\n";
-    }
-    return "Unknown error"; // should never be hit
-}

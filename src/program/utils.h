@@ -36,6 +36,4 @@ time_t getCurrentTime(); // get the current time in seconds, this will be handle
 
 void swapBOOL(BOOL* value);
 
-void printRetCode(RET_CODE code);
-
 #endif

