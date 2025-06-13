@@ -7,13 +7,12 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-
+// maximum message and buffer sizes 
 #define MAX_MSG_LEN     1028
 #define MAX_BUFF_LEN    1028
 
 /**
- * Different return codes to be utilised throughout the code
- * 
+ * Various return codes/flags utilised throughout the code
  */
 typedef enum {
     R_SUCCESS, 
@@ -31,15 +30,12 @@ typedef enum {
 
 RET_CODE retrieveMAC(char* mac);
 
-// unsigned char* freshEncodingKeyPtr(unsigned char key);
-
 void encode(char* str, unsigned char* encKey);  // symetrically encode a string
 
 time_t getCurrentTime(); // get the current time in seconds, this will be handled by the server
 
 void swapBOOL(BOOL* value);
 
-void printErr(RET_CODE err);
-const char* getRetMessage(RET_CODE code);
+void printRetCode(RET_CODE code);
 
 #endif

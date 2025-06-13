@@ -1,7 +1,7 @@
 
 CC = C:/msys64/mingw32/bin/gcc.exe # Compiler
 
-CFLAGS = -Wall -m32 # compiler flags
+CFLAGS = -m32 -pedantic # -Wall # compiler flags
 
 TARGET = donotexecute # output executable name
 

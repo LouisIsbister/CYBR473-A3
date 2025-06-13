@@ -38,15 +38,6 @@ static RET_CODE detectSandbox();
 
 
 RET_CODE detectAnalysisTools() {
-    // // Sleep for 15 minutes - anti sandbox technique!
-    // Sleep(900000);
-
-    // debugger detection method 1
-    LARGE_INTEGER start, end, freq;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&start);
-
-
     // try detect malware analysis tools
     RET_CODE ret = detectVM();
     if (ret != R_SAFE_RET) { return ret; }
@@ -59,15 +50,6 @@ RET_CODE detectAnalysisTools() {
     
     ret = detectSandbox();
     if (ret != R_SAFE_RET) { return ret; }
-
-
-    // compute the time that has elapsed since the last instruction 
-    QueryPerformanceCounter(&end);
-    LONG elapsedTime = (end.QuadPart - start.QuadPart) / freq.QuadPart;
-    if (elapsedTime > 2.5) {   // if it longer than 2.5 seconds then exit
-        printf("Debugger detected by performance!\n");
-        return R_DETECT;
-    }
 
     printf("No analysis tools detected!\n");
     return R_SAFE_RET;
@@ -91,6 +73,7 @@ static RET_CODE detectVM() {
 
     char mac[18];
     RET_CODE ret = retrieveMAC(mac);
+    printf("MAC: %s\n", mac);
     if (ret != R_SUCCESS) { return ret; }
     if (checkVMMacs(mac) == R_DETECT) { return R_DETECT; }
 
@@ -104,17 +87,22 @@ static RET_CODE detectVM() {
  */
 static RET_CODE checkVMMacs(char* mac) {
     // VMware mac detection
-    if (strncmp(mac, VMWARE_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
+    if (strncmp(mac, VMWARE_MAC_A, MAC_PREFIX_LEN) == 0) {
         printf("VMware A detected!\n");
         return R_DETECT;
     }
-    // VBox mac detection
-    if (strncmp(mac, VBOX_HOST_ONLY_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
-        printf("VBOX A detected!\n");
+    if (strncmp(mac, VMWARE_MAC_B, MAC_PREFIX_LEN) == 0) {
+        printf("VMware A detected!\n");
         return R_DETECT;
-    } 
-    if (strncmp(mac, VBOX_OTHER_MAC_PREFIX, MAC_PREFIX_LEN) == 0) {
-        printf("VBOX B detected!\n");
+    }
+
+    // VBox mac detection
+    if (strncmp(mac, VBOX_3_3_MAC, MAC_PREFIX_LEN) == 0) {
+        printf("VBOX v3.3 detected!\n");
+        return R_DETECT;
+    }
+    if (strncmp(mac, VBOX_5_2_MAC, MAC_PREFIX_LEN) == 0) {
+        printf("VBOX v5.2 detected!\n");
         return R_DETECT;
     }
     return R_SAFE_RET;
@@ -187,7 +175,7 @@ static RET_CODE detectDebugger() {
     DWORD errorValue = 4334;
     SetLastError(errorValue);
     OutputDebugString("_");
-    if(GetLastError() == errorValue) {
+    if(GetLastError() != errorValue) {
         printf("Debugger detected by SetLastError!\n");
         return R_DETECT;
     }

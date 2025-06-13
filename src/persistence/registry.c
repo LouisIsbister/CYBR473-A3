@@ -2,7 +2,7 @@
 #include "registry.h"
 
 /**
- * Given the path to our JamesBond.exe as well as the argument, generate a new regsitry key under
+ * Given the path to our Q.exe as well as the argument, generate a new regsitry key under
  * the CURRENT_USER root key, targeting the \run subkey!
  */
 RET_CODE generateRegKey(char* path, char* arg, LONG access) {

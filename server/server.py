@@ -60,8 +60,6 @@ def register():
     time_s = request.args.get('time')
     enc_key = os.urandom(1)  # random single byte key
 
-    # print(f'\n\nKEY: {enc_key.hex()}\n\n')
-
     clients[id] = Cli(id, os_, arch, time_s, enc_key)
     return Response(enc_key, status=200, content_type=BYTES_FORMAT)
 

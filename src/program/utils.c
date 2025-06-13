@@ -1,17 +1,18 @@
 
-
 #include "utils.h"
-
 #include <stdio.h>
 #include <iphlpapi.h>
 
 
-
 static void circularShiftRight(unsigned char* ch);
+static const char* getRetMessage(RET_CODE code);
 
 /**
- * Given a string declared as 'char mac[18]', find the mac address for this device and store it in 'mac'
- * https://stackoverflow.com/questions/13646621/how-to-get-mac-address-in-windows-with-c
+ * This method simply finds the mac address for this device.
+ * Reference: https://stackoverflow.com/questions/13646621/how-to-get-mac-address-in-windows-with-c
+ * 
+ * @param mac string that recieves the mac address, is declared as 'char mac[18]'
+ * @return
  */
 RET_CODE retrieveMAC(char* mac) {
     DWORD bufferLen = sizeof(IP_ADAPTER_INFO);
@@ -31,8 +32,10 @@ RET_CODE retrieveMAC(char* mac) {
 /**
  * Given a string pointer, iterate through each character and XOR it with 
  * the encoding key. If the current character is the key, or the key is the 
- * null terminator then simply leave the char as is. Then rotate the
- * key right and increment the string
+ * null terminator then simply leave the character as is.
+ * 
+ * @param str string to be encoded
+ * @param encKey initial state of the encoding key
  */
 void encode(char* str, unsigned char* encKey) {
     char* s  = str;
@@ -47,23 +50,22 @@ void encode(char* str, unsigned char* encKey) {
 }
 
 /**
- * Shift the original char (key) to the right 1 bit, then | it 
- * with the same char shifted left by 7 bits. It is an unsigned char 
- * because when testing regular and signed char it didn't work haha
+ * Cicular shift the encoding char right once.
  * e.g ch = 0 0 0 0 1 1 1 1
  * 
  * ch >> 1 == 0 0 0 0 0 1 1 1
  * ch << 7 == 1 0 0 0 0 0 0 0
  * Then take the bitwise OR and we can see how it rotates right!
- * https://stackoverflow.com/questions/13289397/circular-shift-in-c
+ * Resource: https://stackoverflow.com/questions/13289397/circular-shift-in-c
+ * 
+ * @param ch encoding key to be shifted
  */
 static void circularShiftRight(unsigned char* ch) {
     *ch = (*ch >> 1) | (*ch << (8 - 1));
 }
 
 /**
- * simply retrieevs the current time in seconds. The server handles 
- * conversion for better user viewing
+ * @return the current time in seconds
  */
 time_t getCurrentTime() {
     time_t seconds;
@@ -72,24 +74,28 @@ time_t getCurrentTime() {
 }
 
 /**
- * Simply swap a bool value
+ * @param value a boolean value to be swapped
  */
 void swapBOOL(BOOL* value) {
-    if (*value == FALSE) { *value = TRUE; }
-    else { *value = FALSE; }
+    *value = !(*value);
 }
 
 /**
- * testing function to report err codes
+ * Simply print the seult of calling getRetMessage
+ * 
+ * @param code provided return code 
  */
-void printErr(RET_CODE err) {
-    printf("ERR: %s\n", getRetMessage(err));
+void printRetCode(RET_CODE code) {
+    printf("Ret: %s\n", getRetMessage(code));
 }
 
 /**
- * get appropriate error message based on error code
+ * Return the appropriate message based on the return code
+ * 
+ * @param code the provided return code
+ * @return the associated return code message
  */
-const char* getRetMessage(RET_CODE code) {
+static const char* getRetMessage(RET_CODE code) {
     switch (code) {
         case R_SUCCESS: return "Success.\n";
         case R_FAILURE: return "Failure.\n";
