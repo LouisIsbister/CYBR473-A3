@@ -15,7 +15,7 @@
 typedef struct {
     char normal;
     char onShift;
-    char* unprintableKeyStr; 
+    char* unprintableKeyStr;
 } KEY_PAIR;
 
 
