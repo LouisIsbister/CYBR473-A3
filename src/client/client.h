@@ -9,7 +9,7 @@
 #define UTIL_H
 
 #define UNLEN 256
-#define MAX_ID_LEN 271 // UNLEN + MAX_COMPUTERNAME_LENGTH
+#define MAX_ID_LEN 274 // UNLEN + mac length
 
 #define MAX_COMMANDS 10
 

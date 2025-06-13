@@ -18,14 +18,13 @@ CLIENT_HANDLER* initClient() {
     DWORD size = UNLEN + 1;
     char buffUser[size];
     if (!GetUserNameA(buffUser, &size)) { return NULL; }
-    
-    size = MAX_COMPUTERNAME_LENGTH + 1;
-    char buffCompName[size];
-    if (!GetComputerNameA(buffCompName, &size)) { return NULL; }  // failed to get computer name
+
+    char mac[18];
+    RET_CODE ret = retrieveMAC(mac);
+    if (ret != R_SUCCESS) { return NULL; }
     
     // initialise and encode the client id, we can now register them with the server
-    sprintf(client->id, "%s-%s", buffCompName, buffUser);
-    // encode(client->id, freshEncodingKeyPtr(client->ENC_KEY));
+    sprintf(client->id, "%s-%s", buffUser, mac);
 
     // establish connection
     HINTERNET hSession = InternetOpenA("server", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
@@ -72,8 +71,12 @@ RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
     // read the key from the response
     DWORD bytesRead;
     unsigned char key[2];
-    if (!InternetReadFile(hRequest, key, 1, &bytesRead) && bytesRead != 0) {  
-        return R_GET;
+    if (!InternetReadFile(hRequest, key, 1, &bytesRead) && bytesRead != 0) { return R_GET; }
+
+    DWORD statusCode = 0;
+    DWORD size = sizeof(DWORD);  // check the response was not err code 400, i.e. this user is aleady registered
+    if (HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &statusCode, &size, NULL)) {
+        if (statusCode == 400) { return R_GET; }
     }
 
     // set the program context encoding key

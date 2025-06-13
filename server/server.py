@@ -47,8 +47,6 @@ class Cli():
 # dictionary of client_id->client_object
 clients: dict[str, Cli] = {}
 
-
-
 @app.route('/register', methods=['GET'])
 def register():
     ''' TARGETED BY: client
@@ -59,6 +57,9 @@ def register():
     arch = request.args.get('arch')
     time_s = request.args.get('time')
     enc_key = os.urandom(1)  # random single byte key
+
+    if id in clients.keys():
+        return '', 400
 
     clients[id] = Cli(id, os_, arch, time_s, enc_key)
     return Response(enc_key, status=200, content_type=BYTES_FORMAT)
