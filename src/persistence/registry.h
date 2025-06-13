@@ -4,7 +4,7 @@
 #ifndef REGISTRY_H
 #define REGISTRY_H
 
-#define RUN_DIR "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"
+#define TARGET_REG_KEY "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"
 
 RET_CODE generateRegKey(char* path, char* arg, LONG access);
 

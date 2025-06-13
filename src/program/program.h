@@ -27,7 +27,7 @@ typedef struct {
     BOOL shutdown;  // shutdown flag updated in the commands.c source file
     BOOL sleeping;  // if true, the key events will be skipped
 
-    unsigned char __KEY__; 
+    unsigned char SECRET_KEY;
 } PROGRAM_CONTEXT;
 
 extern PROGRAM_CONTEXT* ctx;  // Global program context variable

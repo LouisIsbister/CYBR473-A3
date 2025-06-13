@@ -18,9 +18,11 @@ typedef struct {
     char* unprintableKeyStr; 
 } KEY_PAIR;
 
-// functions for handling KEY_PAIR's
+
 KEY_PAIR* initKeyPair(char normal, char onShift, char* unprStr);
+
 BOOL isKeyUnprintable(KEY_PAIR* kp);
+
 void cleanupKeyPair(KEY_PAIR* kp);
 
 

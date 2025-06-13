@@ -4,24 +4,21 @@
 
 
 /**
- * go through all running processes and attempt to match them against 
+ * Iterate all running processes and attempt to match them against 
  * a target process name! i.e. "OLLYDBG" of "ida"
  */
 BOOL enumProcessesForTargets(char** targets, UINT8 tarCount) {
     HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnap == INVALID_HANDLE_VALUE) {
-        printf("Snapshot failed.\n");
-        return FALSE;
-    }
+    if (hSnap == INVALID_HANDLE_VALUE) { return FALSE; }
 
     PROCESSENTRY32 pe;
     pe.dwSize = sizeof(PROCESSENTRY32);
-
     if (!Process32First(hSnap, &pe)) {
         CloseHandle(hSnap);
         return FALSE;
     }
 
+    // iterate process names
     do {
         for (UINT8 i = 0; i < tarCount; i++) {
             char* procName = pe.szExeFile;

